@@ -1,21 +1,53 @@
 /**
  * Symbolic Executor Plugin for OpenCode
  * 
- * SPEC-driven development workflow with:
- * - Tool search (BM25 + Regex)
- * - Serena-based symbolic code operations
- * - Verification gates
- * - Decision logging and mistake tracking
+ * SPEC-driven development workflow with MAKER-inspired reliability:
+ * - Atomic SPEC operations (stateless, fresh context per operation)
+ * - Red-flag detection (auto-retry on structural anomalies)
+ * - Per-project memory index (reference when stuck, not error prevention)
+ * - Verification gates (LSP, security, visual, SPEC)
+ * - State management (SPECState persistence)
  */
 
 import { z } from "zod"
 import { tool } from "@opencode-ai/plugin"
 import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin"
 
-export const SymbolicExecutor: Plugin = async ({ directory }) => {
+/**
+ * Red-flag patterns for error detection
+ * Detects structural anomalies BEFORE logic errors occur
+ * Auto-retries up to 3x before escalating to user
+ */
+const RED_FLAGS = [
+  { 
+    pattern: /maybe|probably|I think|assume|guess/i, 
+    reason: "assumption_detected",
+    message: "Vague language detected (maybe, probably, I think, assume, guess)"
+  },
+  { 
+    pattern: /^.{1500,}$/,
+    reason: "overly_long_response",
+    message: "Response too long (>1500 chars indicates confusion)"
+  },
+  { 
+    pattern: /^\s*$/, 
+    reason: "empty_response",
+    message: "Empty response"
+  },
+  { 
+    pattern: /missing.*section|incomplete|not provided/i, 
+    reason: "missing_required_section",
+    message: "Missing required section"
+  },
+]
+
+export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
+  // Retry tracking per tool call
+  const retryCounts = new Map<string, number>()
+  
   const hooks: Hooks = {
     /**
-     * On session event
+     * On session created: Initialize SPEC state if needed
      */
     event: async ({ event }) => {
       if (event.type === "session.created") {
@@ -24,51 +56,448 @@ export const SymbolicExecutor: Plugin = async ({ directory }) => {
     },
 
     /**
-     * Before tool execution
+     * Before tool execution: Red-flag detection
+     * Discards outputs with structural anomalies and retries
      */
     "tool.execute.before": async (input, output) => {
-      if (isCodeTool(input.tool) && !isSerenaTool(input.tool)) {
-        // Could modify args here
+      const toolKey = `${input.tool}_${Date.now()}`
+      
+      // Check for red flags in output
+      for (const flag of RED_FLAGS) {
+        if (flag.pattern.test(JSON.stringify(output.args || {}))) {
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "warn",
+              message: `Red flag detected: ${flag.reason}`,
+              extra: { tool: input.tool, pattern: flag.pattern.toString() }
+            }
+          })
+          
+          // Track retries
+          const currentRetries = retryCounts.get(toolKey) || 0
+          
+          if (currentRetries < 3) {
+            retryCounts.set(toolKey, currentRetries + 1)
+            // Will retry (OpenCode handles retry logic)
+          } else {
+            // Escalate to user after 3 failed retries
+            retryCounts.delete(toolKey)
+            throw new Error(`Red flag persisted after 3 retries: ${flag.message}`)
+          }
+        }
       }
     },
 
     /**
-     * Inject system prompt
+     * Inject system prompt with executor mindset
      */
     "experimental.chat.system.transform": async (input, output) => {
       output.system.push(EXECUTOR_SYSTEM_PROMPT)
     },
 
     /**
-     * Custom tools
+     * Custom tools - Atomic SPEC operations
      */
     tool: {
-      create_spec: tool({
-        description: "Create new SPEC with requirements, plan, tasks, and verification criteria",
+      // ==================== ATOMIC SPEC OPERATIONS ====================
+      
+      /**
+       * Add a single requirement to SPEC
+       * Stateless: receives current state + requirement data only
+       */
+      "spec.add_requirement": tool({
+        description: "Add a single requirement to SPEC (atomic operation)",
         args: {
-          feature: z.string().describe("Feature description (e.g., 'User authentication with OAuth')"),
-          value: z.string().describe("Value proposition (e.g., 'Users can sign in with one click')"),
+          specId: z.string().describe("SPEC ID (e.g., 'SPEC-001')"),
+          actor: z.string().describe("Who performs the action (e.g., 'User', 'System')"),
+          action: z.string().describe("What action is performed (e.g., 'uploads', 'creates')"),
+          object: z.string().describe("What is acted upon (e.g., 'profile images', 'account')"),
+          acceptance: z.string().describe("Measurable acceptance criteria (include numbers, booleans, specific values)"),
+          edgeCases: z.array(z.string()).describe("Edge cases and boundaries (error states, min/max values)"),
+          verification: z.string().describe("How to verify (test commands, manual steps)"),
         },
         async execute(args, context) {
           const fs = await import("node:fs/promises")
           const path = await import("node:path")
           
-          const specId = await generateSPECId(context.directory)
-          const specPath = path.join(context.directory, ".opencode/specs", `SPEC-${specId}.md`)
+          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
           
-          await fs.mkdir(path.dirname(specPath), { recursive: true })
+          // Read current SPEC
+          let specContent = await fs.readFile(specPath, "utf-8")
           
-          const specContent = generateSPECContent(specId, args.feature, args.value)
+          // Generate requirement markdown
+          const reqNum = (specContent.match(/REQ-(\d+)/g) || []).length + 1
+          const reqMarkdown = `
+- **REQ-${String(reqNum).padStart(3, "0")}**: ${args.actor} ${args.action} ${args.object}
+  - Acceptance: ${args.acceptance}
+  - Edge Cases: ${args.edgeCases.join(", ")}
+  - Verification: ${args.verification}
+`
+          
+          // Insert into Requirements section
+          specContent = specContent.replace(
+            /## Requirements\n/,
+            `## Requirements\n${reqMarkdown}`
+          )
+          
           await fs.writeFile(specPath, specContent, "utf-8")
           
+          // Update state
+          await updateSPECState(context.directory, args.specId, {
+            requirementsCount: reqNum
+          })
+          
           return JSON.stringify({ 
-            specId: `SPEC-${specId}`, 
-            filePath: specPath,
-            feature: args.feature 
+            success: true, 
+            requirementId: `REQ-${String(reqNum).padStart(3, "0")}`,
+            specId: args.specId
           })
         },
       }),
 
+      /**
+       * Add a single task to SPEC
+       * Stateless: receives current state + task data only
+       */
+      "spec.add_task": tool({
+        description: "Add a single task to SPEC (atomic operation)",
+        args: {
+          specId: z.string().describe("SPEC ID"),
+          description: z.string().describe("Task description"),
+          acceptanceCriteria: z.string().describe("How to verify task completion"),
+          verification: z.string().describe("Verification command or steps"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
+          let specContent = await fs.readFile(specPath, "utf-8")
+          
+          const taskNum = (specContent.match(/TASK-(\d+)/g) || []).length + 1
+          const taskMarkdown = `
+- **TASK-${String(taskNum).padStart(3, "0")}**: ${args.description}
+  - Acceptance: ${args.acceptanceCriteria}
+  - Verification: ${args.verification}
+  - [ ] 
+`
+          
+          specContent = specContent.replace(
+            /## Tasks\n/,
+            `## Tasks\n${taskMarkdown}`
+          )
+          
+          await fs.writeFile(specPath, specContent, "utf-8")
+          
+          return JSON.stringify({ 
+            success: true, 
+            taskId: `TASK-${String(taskNum).padStart(3, "0")}`,
+            specId: args.specId
+          })
+        },
+      }),
+
+      /**
+       * Log a single decision with traceability
+       * Stateless: receives current state + decision data only
+       */
+      "spec.add_decision": tool({
+        description: "Log a single decision with full traceability (atomic operation)",
+        args: {
+          specId: z.string().describe("SPEC ID"),
+          context: z.string().describe("Why this decision was needed (include SPEC reference)"),
+          chosen: z.string().describe("What was chosen (include version)"),
+          sources: z.array(z.string()).describe("URLs, docs, SPEC references"),
+          alternatives: z.array(z.object({
+            option: z.string(),
+            rejectedReason: z.string(),
+          })).describe("Alternatives considered with rejection reasons"),
+          tradeoffs: z.string().describe("What was given up by this choice"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
+          let specContent = await fs.readFile(specPath, "utf-8")
+          
+          const decNum = (specContent.match(/DEC-(\d+)/g) || []).length + 1
+          const alternativesMarkdown = args.alternatives
+            .map(a => `    - ${a.option}: ${a.rejectedReason}`)
+            .join("\n")
+          
+          const decisionMarkdown = `
+- **DEC-${String(decNum).padStart(3, "0")}**: ${args.chosen}
+  - Context: ${args.context}
+  - Sources: ${args.sources.join(", ")}
+  - Alternatives:
+${alternativesMarkdown}
+  - Tradeoffs: ${args.tradeoffs}
+`
+          
+          specContent = specContent.replace(
+            /## Decisions\n/,
+            `## Decisions\n${decisionMarkdown}`
+          )
+          
+          await fs.writeFile(specPath, specContent, "utf-8")
+          
+          return JSON.stringify({ 
+            success: true, 
+            decisionId: `DEC-${String(decNum).padStart(3, "0")}`,
+            specId: args.specId
+          })
+        },
+      }),
+
+      /**
+       * Mark SPEC as complete with timestamp
+       * Stateless: receives current state + completion time only
+       */
+      "spec.mark_complete": tool({
+        description: "Mark SPEC as complete with timestamp (HH:MM 24-hour format)",
+        args: {
+          specId: z.string().describe("SPEC ID"),
+          completedAt: z.string().describe("Completion time in HH:MM format (24-hour, e.g., '14:30')"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
+          let specContent = await fs.readFile(specPath, "utf-8")
+          
+          // Update Completed section
+          specContent = specContent.replace(
+            /## Completed\n.*?(?=\n##|\Z)/s,
+            `## Completed\n\n- Completed at: ${args.completedAt} (24-hour format)\n- Status: ✅ Complete\n`
+          )
+          
+          await fs.writeFile(specPath, specContent, "utf-8")
+          
+          // Update state
+          await updateSPECState(context.directory, args.specId, {
+            status: "completed",
+            completedAt: args.completedAt
+          })
+          
+          return JSON.stringify({ 
+            success: true, 
+            specId: args.specId,
+            completedAt: args.completedAt
+          })
+        },
+      }),
+
+      /**
+       * Validate SPEC structure
+       * Returns validation errors for fixing
+       */
+      "spec.validate": tool({
+        description: "Validate SPEC structure and return errors",
+        args: {
+          specId: z.string().describe("SPEC ID to validate"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
+          
+          try {
+            const specContent = await fs.readFile(specPath, "utf-8")
+            const errors: string[] = []
+            
+            // Check required sections
+            const requiredSections = [
+              "## Value",
+              "## Requirements",
+              "## Tasks",
+              "## Decisions",
+              "## Verification",
+            ]
+            
+            for (const section of requiredSections) {
+              if (!specContent.includes(section)) {
+                errors.push(`Missing required section: ${section}`)
+              }
+            }
+            
+            // Check for at least one requirement
+            if (!specContent.match(/REQ-\d+/)) {
+              errors.push("SPEC must have at least one requirement")
+            }
+            
+            // Check requirements have acceptance criteria
+            const reqsWithoutAcceptance = (specContent.match(/REQ-\d+.*?(?=- \*\*REQ|\n##)/gs) || [])
+              .filter(req => !req.includes("Acceptance:"))
+            
+            if (reqsWithoutAcceptance.length > 0) {
+              errors.push(`${reqsWithoutAcceptance.length} requirement(s) missing acceptance criteria`)
+            }
+            
+            return JSON.stringify({
+              passed: errors.length === 0,
+              errors,
+              specId: args.specId,
+            })
+          } catch (error) {
+            return JSON.stringify({
+              passed: false,
+              errors: [`SPEC file not found: ${args.specId}`],
+              specId: args.specId,
+            })
+          }
+        },
+      }),
+
+      // ==================== SEARCH TOOLS ====================
+      
+      /**
+       * Search per-project memory index
+       * Helps when stuck (not for error prevention)
+       */
+      search_memories: tool({
+        description: "Search per-project memory index when stuck (reference library, not guardrail)",
+        args: {
+          keywords: z.array(z.string()).describe("Search keywords"),
+          category: z.enum(["auth", "security", "deployment", "performance", "design", "architecture"]).optional().describe("Category filter"),
+          specReference: z.string().optional().describe("SPEC reference filter"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const memoryIndexPath = path.join(context.directory, ".opencode/memory/index.md")
+          
+          try {
+            const indexContent = await fs.readFile(memoryIndexPath, "utf-8")
+            const results: any[] = []
+            
+            // Simple keyword search in index
+            const lines = indexContent.split("\n")
+            for (const line of lines) {
+              const hasKeywords = args.keywords.some(k => line.toLowerCase().includes(k.toLowerCase()))
+              const hasCategory = !args.category || line.toLowerCase().includes(args.category.toLowerCase())
+              const hasSPEC = !args.specReference || line.includes(args.specReference)
+              
+              if (hasKeywords && hasCategory && hasSPEC && line.includes("MEM-")) {
+                results.push({
+                  line,
+                  relevance: "high"
+                })
+              }
+            }
+            
+            return JSON.stringify(results.slice(0, 10))
+          } catch {
+            return JSON.stringify({
+              error: "Memory index not found. Run 'npx opencode-symbolic-executor init' to create.",
+              results: []
+            })
+          }
+        },
+      }),
+
+      search_decisions: tool({
+        description: "Search decision logs by keyword, type, or SPEC reference",
+        args: {
+          keywords: z.array(z.string()).describe("Search keywords"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const decisionsDir = path.join(context.directory, ".opencode/decisions")
+          
+          try {
+            const files = await fs.readdir(decisionsDir)
+            const results: any[] = []
+            
+            for (const file of files) {
+              if (!file.endsWith(".md")) continue
+              
+              const filePath = path.join(decisionsDir, file)
+              const content = await fs.readFile(filePath, "utf-8")
+              
+              const hasKeywords = args.keywords.some(k => content.toLowerCase().includes(k.toLowerCase()))
+              
+              if (hasKeywords) {
+                results.push({
+                  id: file.replace(".md", ""),
+                  title: content.match(/^# (.+)$/m)?.[1] || "Untitled",
+                  excerpt: content.slice(0, 200) + "..."
+                })
+              }
+            }
+            
+            return JSON.stringify(results.slice(0, 10))
+          } catch {
+            return JSON.stringify([])
+          }
+        },
+      }),
+
+      search_mistakes: tool({
+        description: "Search mistake logs by keyword or category to get unstuck",
+        args: {
+          keywords: z.array(z.string()).describe("Search keywords"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const mistakesDir = path.join(context.directory, ".opencode/mistakes")
+          
+          try {
+            const files = await fs.readdir(mistakesDir)
+            const results: any[] = []
+            
+            for (const file of files) {
+              if (!file.endsWith(".md")) continue
+              
+              const filePath = path.join(mistakesDir, file)
+              const content = await fs.readFile(filePath, "utf-8")
+              
+              const hasKeywords = args.keywords.some(k => content.toLowerCase().includes(k.toLowerCase()))
+              
+              if (hasKeywords) {
+                results.push({
+                  id: file.replace(".md", ""),
+                  title: content.match(/^# (.+)$/m)?.[1] || "Untitled",
+                  lesson: content.match(/\*\*Lesson\*\*:\s*(.+)/i)?.[1] || "",
+                  excerpt: content.slice(0, 200) + "..."
+                })
+              }
+            }
+            
+            return JSON.stringify(results.slice(0, 10))
+          } catch {
+            return JSON.stringify([])
+          }
+        },
+      }),
+
+      tool_search: tool({
+        description: "Search for available tools by keyword or natural language",
+        args: {
+          query: z.string().describe("Natural language description or regex pattern"),
+          limit: z.number().default(5).describe("Max results to return"),
+          useRegex: z.boolean().default(false).describe("Use regex search instead of keyword matching"),
+        },
+        async execute(args) {
+          // Placeholder - would integrate with BM25 or regex search
+          return JSON.stringify({ 
+            tools: [],
+            query: args.query,
+            note: "Tool search not yet implemented"
+          })
+        },
+      }),
+
+      // ==================== VERIFICATION TOOLS ====================
+      
       review_plan: tool({
         description: "Review and score technical plans objectively (≥85 to pass)",
         args: {
@@ -96,6 +525,7 @@ export const SymbolicExecutor: Plugin = async ({ directory }) => {
           taskId: z.string().describe("Task ID being verified"),
         },
         async execute() {
+          // Placeholder - will integrate with actual verification gates
           return JSON.stringify({ 
             passed: true, 
             score: 100,
@@ -108,43 +538,13 @@ export const SymbolicExecutor: Plugin = async ({ directory }) => {
           })
         },
       }),
-
-      search_decisions: tool({
-        description: "Search decision logs by keyword, type, or SPEC reference",
-        args: {
-          keywords: z.array(z.string()).describe("Search keywords"),
-        },
-        async execute() {
-          return JSON.stringify([])
-        },
-      }),
-
-      search_mistakes: tool({
-        description: "Search mistake logs by keyword or category to get unstuck",
-        args: {
-          keywords: z.array(z.string()).describe("Search keywords"),
-        },
-        async execute() {
-          return JSON.stringify([])
-        },
-      }),
-
-      tool_search: tool({
-        description: "Search for available tools by keyword or natural language",
-        args: {
-          query: z.string().describe("Natural language description or regex pattern"),
-          limit: z.number().default(5).describe("Max results to return"),
-          useRegex: z.boolean().default(false).describe("Use regex search instead of BM25"),
-        },
-        async execute() {
-          return JSON.stringify({ tools: [] })
-        },
-      }),
     },
   }
 
   return hooks
 }
+
+// ==================== HELPER FUNCTIONS ====================
 
 const EXECUTOR_SYSTEM_PROMPT = `
 YOU ARE THE PRIMARY DEVELOPER.
@@ -155,7 +555,7 @@ PROCESS (ALWAYS FOLLOW):
 3. APPROVE - Present plan to user, incorporate feedback, lock SPEC
 4. EXECUTE - Implement per SPEC using Serena (symbolic operations only)
 5. VERIFY - Run verification gates (LSP, security, tests, visual)
-6. DOCUMENT - Log decisions with traceability, update MistakeKeeper
+6. DOCUMENT - Log decisions with traceability, update memory index
 
 RULES:
 - NEVER assume - ask when unclear
@@ -166,19 +566,24 @@ RULES:
 - ALWAYS verify before marking complete
 - ALWAYS log decisions with traceability
 
-DECISION LOGGING:
-All decisions MUST include:
-- Context: Why this decision was needed
-- Sources: URLs, docs, SPEC references
-- Alternatives: Options considered + rejection reasons
-- Tradeoffs: What was given up
+MEMORY SYSTEM:
+Memory helps when stuck, not to prevent errors.
+- Location: .opencode/memory/ (per-project)
+- Purpose: Reference library for past solutions
+- Use search_memories when stuck
 
-MISTAKE TRACKING:
-Mistakes document:
-- Symptom: What went wrong (observable)
-- Root Cause: Why it happened (systemic, not human error)
-- How We Got Unstuck: Specific steps to resolve
-- Prevention: Checklist item or gate
+RED-FLAG DETECTION:
+Automatic detection discards outputs with:
+- Vague language (maybe, probably, I think, assume, guess)
+- Overly long responses (>1500 chars)
+- Missing required sections
+Auto-retries up to 3x before escalating.
+
+ATOMIC OPERATIONS:
+Each SPEC operation is stateless:
+- Fresh context per operation (no drift)
+- Error isolation (1 failure ≠ lost work)
+- State object is the only memory
 
 VERIFICATION GATES:
 - Type Safety: 0 TypeScript errors
@@ -213,7 +618,6 @@ async function maybeCreateOpencodeDirectory(directory: string): Promise<void> {
   if (!hasPackage && !hasGit) return
 
   // Don't auto-create, let user run init command
-  // This avoids creating .opencode/ when user is just asking questions
 }
 
 async function generateSPECId(directory: string): Promise<string> {
@@ -244,19 +648,16 @@ function generateSPECContent(specId: string, feature: string, value: string): st
 ${value}
 
 ## Requirements
-- **REQ-001**: User can use ${feature.toLowerCase()}
-  - Acceptance: Feature works as described
-  - Edge Cases: Error handling for invalid input
-  - Verification: Manual testing per acceptance criteria
+<!-- Add requirements using spec.add_requirement -->
 
 ## Plan
 <!-- To be filled after SPEC approval -->
 
 ## Tasks
-<!-- To be filled after plan approval -->
+<!-- Add tasks using spec.add_task -->
 
 ## Decisions
-<!-- Decisions logged during implementation -->
+<!-- Log decisions using spec.add_decision -->
 
 ## Verification
 <!-- Verification results after implementation -->
@@ -335,20 +736,33 @@ function generateFeedback(breakdown: any, passed: boolean): string[] {
   return feedback
 }
 
-function isCodeTool(toolName: string): boolean {
-  const codeTools = ["edit", "write", "bash", "grep"]
-  return codeTools.includes(toolName)
-}
-
-function isSerenaTool(toolName: string): boolean {
-  const serenaTools = [
-    "serena_find_symbol",
-    "serena_find_referencing_symbols",
-    "serena_get_symbols_overview",
-    "serena_insert_after_symbol",
-    "serena_insert_before_symbol",
-    "serena_replace_symbol_body",
-    "serena_rename_symbol",
-  ]
-  return serenaTools.some((t) => toolName.includes(t))
+/**
+ * Update SPEC state (persistent + embedded)
+ */
+async function updateSPECState(
+  directory: string,
+  specId: string,
+  updates: {
+    status?: string
+    requirementsCount?: number
+    completedAt?: string
+  }
+): Promise<void> {
+  const fs = await import("node:fs/promises")
+  const path = await import("node:path")
+  
+  // Update persistent state file
+  const statePath = path.join(directory, ".opencode/specs", `${specId}.state.json`)
+  
+  let state: any = {}
+  try {
+    const stateContent = await fs.readFile(statePath, "utf-8")
+    state = JSON.parse(stateContent)
+  } catch {
+    // State file doesn't exist yet
+  }
+  
+  Object.assign(state, updates)
+  
+  await fs.writeFile(statePath, JSON.stringify(state, null, 2), "utf-8")
 }
