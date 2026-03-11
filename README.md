@@ -4,42 +4,44 @@
 
 ## Installation
 
-### Option 1: GitHub (Recommended)
+### Step 1: Install Plugin (GitHub)
 
 ```bash
 # Clone to global plugins
 mkdir -p ~/.config/opencode/plugins
 git clone https://github.com/zaghloulme/opencode-symbolic-executor.git ~/.config/opencode/plugins/symbolic-executor
-cd ~/.config/opencode/plugins/symbolic-executor
-
-# Run init (creates .opencode/ in current project)
-symbolic-executor init
 ```
 
-### Option 2: npm (Plugin WIP)
-
-The plugin is being refactored for the new @opencode-ai/plugin API. Install from GitHub for now.
+### Step 2: Install CLI (npm)
 
 ```bash
-npm install -g symbolic-executor  # CLI tools only
-symbolic-executor init
+npm install -g symbolic-executor
 ```
 
-## What It Does
+Or use npx without installing:
+```bash
+npx symbolic-executor init
+```
 
-- **SPEC-Driven Development**: No implementation without approved SPEC
-- **Tool Search**: BM25 + Regex search (85% context reduction)
-- **Verification Gates**: LSP, security, visual (≥90%), SPEC alignment
-- **Decision Logging**: Full traceability with sources
-- **Mistake Tracking**: "How we got unstuck" focus
+### Step 3: Configure OpenCode
+
+Edit `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": ["symbolic-executor"]
+}
+```
 
 ## Usage
 
 ### Initialize Project
 
+In your project directory (must have `package.json` or `.git`):
+
 ```bash
 cd your-project
-symbolic-executor init
+npx symbolic-executor init
 ```
 
 Creates:
@@ -69,15 +71,27 @@ I need to find symbol definitions
 Verify the login implementation
 ```
 
-## Configuration
+## Features
 
-Edit `~/.config/opencode/opencode.json`:
+- **SPEC-Driven Development**: No implementation without approved SPEC
+- **Tool Search**: BM25 + Regex search (85% context reduction)
+- **Verification Gates**: LSP, security, visual (≥90%), SPEC alignment
+- **Decision Logging**: Full traceability with sources
+- **Mistake Tracking**: "How we got unstuck" focus
 
-```json
-{
-  "plugin": ["symbolic-executor"]
-}
+## CI/CD
+
+Automated publishing on git tags:
+
+```bash
+# Bump version
+npm version patch
+
+# Push tag (triggers npm publish)
+git push origin main --tags
 ```
+
+See [RELEASE.md](./RELEASE.md) for details.
 
 ## License
 
