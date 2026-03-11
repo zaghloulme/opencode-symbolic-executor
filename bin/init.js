@@ -13,6 +13,7 @@
  * - .opencode/constitution.md (project principles)
  * - .opencode/SPEC-INDEX.md (SPEC tracker)
  * - .opencode/specs/ (individual SPECs)
+ * - .opencode/memory/ (per-project memory index)
  * - .opencode/mistakes/ (mistake index)
  * - .opencode/decisions/ (decision logs)
  * 
@@ -26,9 +27,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 
-// Template paths
-const PLUGIN_DIR = path.join(os.homedir(), '.config/opencode/plugins/symbolic-executor')
-const TEMPLATES_DIR = path.join(PLUGIN_DIR, '.opencode/templates')
+// Template paths (check npm package location first, then git clone location)
+const NPM_PACKAGE_DIR = path.join(os.homedir(), '.npm/_npx/opencode-symbolic-executor')
+const GIT_PLUGIN_DIR = path.join(os.homedir(), '.config/opencode/plugins/symbolic-executor')
+const TEMPLATES_DIR = path.join(GIT_PLUGIN_DIR, '.opencode/templates')
 
 // Templates
 const CONSTITUTION_TEMPLATE = `# Project Constitution
@@ -82,40 +84,130 @@ const SPEC_INDEX_TEMPLATE = `# SPEC Index
 ## Archived SPECs
 `
 
+const MEMORY_INDEX_TEMPLATE = `# Memory Index
+
+> Memory helps when you're **stuck**, not to **prevent errors**.
+> 
+> Use \`search_memories\` tool with keywords when stuck.
+
+| ID      | Category | Date       | Summary                 | File             |
+| ------- | -------- | ---------- | ----------------------- | ---------------- |
+
+## Categories
+- auth: Authentication and authorization
+- security: Security issues and fixes
+- deployment: Deployment and infrastructure
+- performance: Performance optimizations
+- design: UI/UX and design decisions
+- architecture: Architecture and patterns
+
+## Search
+Use \`search_memories\` tool with keywords to find relevant memories.
+`
+
+const CONFIG_TEMPLATE = `{
+  "$schema": "https://opencode.ai/config.json",
+  "mcpServers": {
+    "serena": {
+      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      "deferLoading": false,
+      "description": "Symbolic code operations (always loaded)"
+    },
+    "context7": {
+      "command": ["npx", "-y", "@context7/mcp-server"],
+      "deferLoading": true,
+      "triggers": ["library", "package", "API", "docs", "dependency", "npm"],
+      "description": "Official library documentation and API references"
+    },
+    "next-devtools": {
+      "command": ["npx", "-y", "next-devtools-mcp"],
+      "deferLoading": true,
+      "triggers": ["Next.js", "next", "dev server", "build", "runtime"],
+      "description": "Next.js runtime diagnostics and browser automation"
+    }
+  }
+}
+`
+
+function findPluginDir() {
+  // Check npm package location first
+  if (fs.existsSync(NPM_PACKAGE_DIR)) {
+    return NPM_PACKAGE_DIR
+  }
+  
+  // Fall back to git clone location
+  if (fs.existsSync(GIT_PLUGIN_DIR)) {
+    return GIT_PLUGIN_DIR
+  }
+  
+  return null
+}
+
 async function init() {
   const cwd = process.cwd()
   
   console.log('🚀 Symbolic Executor Project Init\n')
   
-  // Check if in project root
+  // Check if in project root (more lenient check)
   const hasPackage = fs.existsSync(path.join(cwd, 'package.json'))
   const hasGit = fs.existsSync(path.join(cwd, '.git'))
   
+  // If neither exists, offer to initialize git
   if (!hasPackage && !hasGit) {
-    console.error('✗ Error: Not in project root')
-    console.error('  Project root must have package.json or .git')
-    console.error('  Current directory:', cwd)
-    process.exit(1)
+    console.log('⚠️  Not in a recognized project root')
+    console.log('  (no package.json or .git found)\n')
+    
+    // Offer to initialize git
+    console.log('Would you like to initialize a git repository here?')
+    console.log('Run: git init\n')
+    console.log('Or create a package.json: npm init -y\n')
+    console.log('Then re-run: npx opencode-symbolic-executor init')
+    process.exit(0)
   }
   
-  console.log('✓ Project root detected')
+  if (hasGit) {
+    console.log('✓ Project root detected (.git found)')
+  } else if (hasPackage) {
+    console.log('✓ Project root detected (package.json found)')
+  }
   
   // Check if .opencode/ already exists
   const opencodeDir = path.join(cwd, '.opencode')
   if (fs.existsSync(opencodeDir)) {
-    console.log('✓ .opencode/ already exists')
-    console.log('  Skipping initialization')
-    return
+    console.log('\n⚠️  .opencode/ already exists')
+    console.log('  Checking if initialization is complete...\n')
+    
+    // Check what's missing
+    const missing = []
+    const expected = [
+      'config.json',
+      'constitution.md',
+      'SPEC-INDEX.md',
+      'memory/index.md',
+      'specs',
+      'mistakes',
+      'decisions'
+    ]
+    
+    for (const item of expected) {
+      const itemPath = path.join(opencodeDir, item)
+      if (!fs.existsSync(itemPath)) {
+        missing.push(item)
+      }
+    }
+    
+    if (missing.length === 0) {
+      console.log('✓ All files present, skipping initialization')
+      return
+    }
+    
+    console.log('Missing files/directories:')
+    missing.forEach(m => { console.log(`  - .opencode/${m}`) })
+    console.log('\nWould you like to create missing files? (y/n)')
+    
+    // For now, just create missing ones automatically
+    console.log('Creating missing files...\n')
   }
-  
-  // Check if plugin is installed
-  if (!fs.existsSync(PLUGIN_DIR)) {
-    console.error('✗ Error: Plugin not installed')
-    console.error('  Install first: git clone https://github.com/zaghloulme/opencode-symbolic-executor.git ~/.config/opencode/plugins/symbolic-executor')
-    process.exit(1)
-  }
-  
-  console.log('✓ Plugin installed')
   
   // Create structure
   console.log('\n📁 Creating .opencode/ structure...')
@@ -124,53 +216,60 @@ async function init() {
   await fs.promises.mkdir(path.join(opencodeDir, 'specs'), { recursive: true })
   await fs.promises.mkdir(path.join(opencodeDir, 'mistakes'), { recursive: true })
   await fs.promises.mkdir(path.join(opencodeDir, 'decisions'), { recursive: true })
+  await fs.promises.mkdir(path.join(opencodeDir, 'memory'), { recursive: true })
   
   console.log('  - .opencode/specs/')
   console.log('  - .opencode/mistakes/')
   console.log('  - .opencode/decisions/')
+  console.log('  - .opencode/memory/')
   
-  // Copy config template
-  const configTemplate = path.join(TEMPLATES_DIR, 'config.json')
-  if (fs.existsSync(configTemplate)) {
-    await fs.promises.copyFile(
-      configTemplate,
-      path.join(opencodeDir, 'config.json')
+  // Create config
+  const configPath = path.join(opencodeDir, 'config.json')
+  if (!fs.existsSync(configPath)) {
+    await fs.promises.writeFile(
+      configPath,
+      CONFIG_TEMPLATE
     )
     console.log('  - .opencode/config.json')
   } else {
-    // Create minimal config if template missing
-    await fs.promises.writeFile(
-      path.join(opencodeDir, 'config.json'),
-      JSON.stringify({
-        mcpServers: {
-          serena: {
-            command: 'uvx --from git+https://github.com/oraios/serena serena start-mcp-server',
-            deferLoading: false,
-          },
-          context7: {
-            command: 'npx -y @context7/mcp-server',
-            deferLoading: true,
-            triggers: ['library', 'package', 'API', 'docs'],
-          },
-        },
-      }, null, 2)
-    )
-    console.log('  - .opencode/config.json (minimal)')
+    console.log('  ✓ .opencode/config.json (already exists)')
   }
   
   // Create constitution
-  await fs.promises.writeFile(
-    path.join(opencodeDir, 'constitution.md'),
-    CONSTITUTION_TEMPLATE
-  )
-  console.log('  - .opencode/constitution.md')
+  const constitutionPath = path.join(opencodeDir, 'constitution.md')
+  if (!fs.existsSync(constitutionPath)) {
+    await fs.promises.writeFile(
+      constitutionPath,
+      CONSTITUTION_TEMPLATE
+    )
+    console.log('  - .opencode/constitution.md')
+  } else {
+    console.log('  ✓ .opencode/constitution.md (already exists)')
+  }
   
   // Create SPEC index
-  await fs.promises.writeFile(
-    path.join(opencodeDir, 'SPEC-INDEX.md'),
-    SPEC_INDEX_TEMPLATE
-  )
-  console.log('  - .opencode/SPEC-INDEX.md')
+  const specIndexPath = path.join(opencodeDir, 'SPEC-INDEX.md')
+  if (!fs.existsSync(specIndexPath)) {
+    await fs.promises.writeFile(
+      specIndexPath,
+      SPEC_INDEX_TEMPLATE
+    )
+    console.log('  - .opencode/SPEC-INDEX.md')
+  } else {
+    console.log('  ✓ .opencode/SPEC-INDEX.md (already exists)')
+  }
+  
+  // Create memory index
+  const memoryIndexPath = path.join(opencodeDir, 'memory/index.md')
+  if (!fs.existsSync(memoryIndexPath)) {
+    await fs.promises.writeFile(
+      memoryIndexPath,
+      MEMORY_INDEX_TEMPLATE
+    )
+    console.log('  - .opencode/memory/index.md')
+  } else {
+    console.log('  ✓ .opencode/memory/index.md (already exists)')
+  }
   
   console.log('\n✅ Project initialization complete!\n')
   console.log('Next steps:')
@@ -178,6 +277,12 @@ async function init() {
   console.log('2. Edit .opencode/config.json (add your MCP servers)')
   console.log('3. Start OpenCode: opencode')
   console.log('4. Create first SPEC: "Create a SPEC for user authentication"')
+  console.log('\nWorkflow:')
+  console.log('  Plan Mode: Create SPEC → Add requirements → Validate → Approve')
+  console.log('  Build Mode: Implement tasks → Verify → Log decisions → Mark complete')
 }
 
-init()
+init().catch(err => {
+  console.error('✗ Error:', err.message)
+  process.exit(1)
+})
