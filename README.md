@@ -1,75 +1,38 @@
-# Symbolic Executor for OpenCode
+# opencode-symbolic-executor
 
-**SPEC-driven development workflow with verification gates**
+**SPEC-driven development workflow for OpenCode**
 
 ## Installation
 
-### Step 1: Install Plugin (GitHub)
-
-```bash
-# Clone to global plugins
-mkdir -p ~/.config/opencode/plugins
-git clone https://github.com/zaghloulme/opencode-symbolic-executor.git ~/.config/opencode/plugins/symbolic-executor
-```
-
-### Step 2: Install CLI (npm)
-
-```bash
-npm install -g symbolic-executor
-```
-
-Or use npx without installing:
-```bash
-npx symbolic-executor init
-```
-
-### Step 3: Configure OpenCode
+### Step 1: Add to OpenCode Config
 
 Edit `~/.config/opencode/opencode.json`:
 
 ```json
 {
-  "plugin": ["symbolic-executor"]
+  "plugin": [
+    "opencode-symbolic-executor"
+  ]
 }
 ```
 
-## Usage
+OpenCode will automatically install the plugin using Bun at startup.
 
-### Initialize Project
+### Step 2: Initialize Project (Optional)
 
 In your project directory (must have `package.json` or `.git`):
 
 ```bash
-cd your-project
-npx symbolic-executor init
+npx opencode-symbolic-executor init
 ```
 
-Creates:
+This creates:
 - `.opencode/config.json` (MCP servers with deferLoading)
 - `.opencode/constitution.md` (project principles)
 - `.opencode/SPEC-INDEX.md` (SPEC tracker)
 - `.opencode/specs/` (individual SPECs)
 - `.opencode/mistakes/` (mistake index)
 - `.opencode/decisions/` (decision logs)
-
-### Create SPEC
-
-In OpenCode:
-```
-Create a SPEC for user authentication
-```
-
-### Search Tools
-
-```
-I need to find symbol definitions
-```
-
-### Verify Work
-
-```
-Verify the login implementation
-```
 
 ## Features
 
@@ -79,19 +42,50 @@ Verify the login implementation
 - **Decision Logging**: Full traceability with sources
 - **Mistake Tracking**: "How we got unstuck" focus
 
+## Usage in OpenCode
+
+After installation, these tools are available:
+
+- `create_spec` - Create SPEC with requirements
+- `review_plan` - Score plans (≥85 to pass)
+- `verify_work` - Run verification gates
+- `search_decisions` - Search decision logs
+- `search_mistakes` - Search mistake logs
+- `tool_search` - Search available tools
+
+### Example
+
+```
+Create a SPEC for user authentication with OAuth
+```
+
+## Configuration
+
+Plugin options in `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": ["opencode-symbolic-executor"],
+  "symbolicExecutor": {
+    "enableSPECWorkflow": true,
+    "enableToolSearch": true,
+    "visualThreshold": 0.90,
+    "maxRevisions": 3
+  }
+}
+```
+
 ## CI/CD
 
 Automated publishing on git tags:
 
 ```bash
 # Bump version
-npm version patch
+npm version patch  # or minor/major
 
-# Push tag (triggers npm publish)
+# Push tag (triggers npm publish + GitHub Release)
 git push origin main --tags
 ```
-
-See [RELEASE.md](./RELEASE.md) for details.
 
 ## License
 
