@@ -2,6 +2,28 @@
 
 **SPEC-driven development workflow for OpenCode with MAKER-inspired reliability**
 
+> **Philosophy:** One agent, atomic operations, stateless execution. Memory helps when stuck—not to prevent errors. Red-flags catch structural anomalies before logic errors.
+
+---
+
+## Why This Exists
+
+Most AI coding plugins fail at scale because:
+- ❌ Coarse operations (one tool does too much)
+- ❌ Chat history accumulation (context drift)
+- ❌ No error detection (accepts vague output)
+- ❌ Multi-agent overhead (coordination > value)
+
+This plugin implements **MAKER framework** principles for single-agent reliability:
+- ✅ **Atomic operations** (1 step = 1 tool call)
+- ✅ **Stateless execution** (fresh context per operation)
+- ✅ **Red-flag detection** (discard + retry, don't fix)
+- ✅ **Per-project memory** (reference when stuck, not guardrail)
+
+Result: Log-linear cost scaling (Θ(s ln s)) instead of exponential growth.
+
+---
+
 ## Installation
 
 ### Step 1: Add to OpenCode Config
@@ -376,6 +398,83 @@ This plugin implements principles from the [MAKER paper](https://arxiv.org/abs/2
 - With maximal decomposition: Θ(s ln s) - log-linear
 - With coarse tasks: exponential growth
 - Atomic operations enable scaling
+
+---
+
+## Design Decisions
+
+### Why Atomic Operations?
+
+**Problem:** Coarse tools (`create_spec` does everything) create cascading failures.
+
+**Solution:** Atomic operations (`spec.add_requirement`, `spec.add_task`, etc.)
+
+**Benefits:**
+- Error isolation (1 failure ≠ entire SPEC lost)
+- Fresh context per operation (no drift)
+- Log-linear cost scaling (MAKER proof)
+
+### Why Not Multi-Agent Voting?
+
+**Considered:** Multiple agents vote on verification
+
+**Rejected because:**
+- Development workflows are **sequential**, not parallel
+- Coordination overhead > benefits
+- Agents without full context make poor decisions
+- Contradicts single-agent philosophy
+
+**Alternative:** Specialized verification gates (LSP, security, visual, SPEC)
+- Deterministic (no disagreement)
+- Transparent (see exactly what failed)
+- Composable (add/remove gates easily)
+
+### Why Memory Helps When Stuck (Not Prevent Errors)?
+
+**Problem:** Error-prevention memory makes LLMs too careful and hesitant.
+
+**Solution:** Memory as reference library, not guardrail.
+
+**Philosophy:**
+> "Preventing errors makes LLMs too careful. Memory is a reference library, not a guardrail."
+
+**When to use:**
+- ✅ Stuck on OAuth redirect loop
+- ✅ Seeing familiar CVE pattern
+- ✅ Deployment issue feels familiar
+
+**When NOT to use:**
+- ❌ Every operation (slows down)
+- ❌ Error prevention (makes LLM hesitant)
+- ❌ As guardrail (not its purpose)
+
+### Why Red-Flag Detection?
+
+**Insight:** LLMs make **syntax errors BEFORE logic errors**.
+
+**Detection:**
+- Vague language (maybe, probably, I think)
+- Overly long responses (>1500 chars = confused)
+- Missing required sections
+- Incorrect structure/format
+
+**Action:** Discard + retry (don't fix)
+
+**Why not fix?** Fixing assumes we understand the error. Resampling is cheaper and more reliable.
+
+### Why Statelessness?
+
+**Problem:** Chat history accumulation causes context drift.
+
+**Solution:** State object is the ONLY memory.
+
+**Each operation receives:**
+- Current SPECState (serialized)
+- Immediate operation to perform
+- **NO** chat history
+- **NO** previous tool calls
+
+**Benefit:** Prevents drift, enables error isolation.
 
 ---
 
