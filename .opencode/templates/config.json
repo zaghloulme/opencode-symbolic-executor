@@ -1,0 +1,110 @@
+{
+  "$schema": "https://opencode.ai/schemas/config.json",
+  "mcpServers": {
+    "context7": {
+      "command": "npx -y @context7/mcp-server",
+      "deferLoading": true,
+      "triggers": [
+        "library",
+        "package",
+        "API",
+        "docs",
+        "dependency",
+        "npm"
+      ],
+      "regexPatterns": [
+        ".*library.*",
+        ".*package.*",
+        ".*API.*",
+        ".*documentation.*"
+      ],
+      "description": "Official library documentation and API references"
+    },
+    "sanity": {
+      "command": "npx -y @sanity/mcp-server",
+      "deferLoading": true,
+      "triggers": [
+        "sanity",
+        "CMS",
+        "content",
+        "schema",
+        "studio"
+      ],
+      "regexPatterns": [
+        ".*sanity.*",
+        ".*cms.*",
+        ".*content.*"
+      ],
+      "description": "Sanity CMS schema and content operations"
+    },
+    "next-devtools": {
+      "command": "npx -y next-devtools-mcp",
+      "deferLoading": true,
+      "triggers": [
+        "Next.js",
+        "next",
+        "dev server",
+        "build",
+        "runtime"
+      ],
+      "regexPatterns": [
+        ".*next.*",
+        ".*dev.*"
+      ],
+      "description": "Next.js runtime diagnostics and browser automation"
+    },
+    "nodesecure": {
+      "command": "npx -y @nodesecure/cli mcp-server",
+      "deferLoading": true,
+      "triggers": [
+        "security",
+        "CVE",
+        "audit",
+        "vulnerability",
+        "dependency"
+      ],
+      "regexPatterns": [
+        ".*security.*",
+        ".*CVE.*",
+        ".*vulnerability.*"
+      ],
+      "description": "Node.js security scanning and CVE detection"
+    },
+    "playwright": {
+      "command": "npx -y playwright-mcp-server",
+      "deferLoading": true,
+      "triggers": [
+        "browser",
+        "screenshot",
+        "visual",
+        "test",
+        "e2e",
+        "automation"
+      ],
+      "regexPatterns": [
+        ".*browser.*",
+        ".*screenshot.*",
+        ".*visual.*"
+      ],
+      "description": "Browser automation and visual testing"
+    }
+  },
+  "toolSearch": {
+    "alwaysLoad": [
+      "create_spec",
+      "review_plan",
+      "verify_work"
+    ],
+    "enableToolSearch": true,
+    "bm25Params": {
+      "k1": 0.9,
+      "b": 0.4
+    }
+  },
+  "symbolicExecutor": {
+    "enableSPECWorkflow": true,
+    "enableVerification": true,
+    "visualThreshold": 0.90,
+    "maxRevisions": 3
+  }
+}
