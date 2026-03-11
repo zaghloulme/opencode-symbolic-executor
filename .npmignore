@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Build output
+dist/
+
+# Source files not needed for runtime
+src/
+
+# Dev dependencies config
+tsconfig.json
+
+# Scripts
+scripts/
+
+# Templates (included in dist)
+.opencode/
+
+# Tests
+*.test.ts
+*.spec.ts
+test/
+__tests__/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
