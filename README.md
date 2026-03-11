@@ -56,6 +56,80 @@ This creates:
 
 ---
 
+## SPEC = Plan Workflow
+
+**The SPEC IS the plan.** No separate Plan section needed.
+
+### How It Works
+
+1. **Create SPEC** with `create_spec` tool
+   - Executive summary (2-3 sentences)
+   - Requirements with implementation guidance
+   - Auto-generates Execution Plan
+   - Auto-generates File Structure
+   - Shows ASCII box summary in chat
+
+2. **Add Requirements** with `spec.add_requirement`
+   - Each requirement includes:
+     - Acceptance criteria (measurable)
+     - Implementation guidance (HOW)
+     - Dependencies (packages needed)
+     - Files to create/modify
+   - Tasks auto-derived from requirements
+
+3. **Validate SPEC** with `spec.validate`
+   - Checks structure
+   - Validates acceptance criteria
+   - Returns errors if incomplete
+
+4. **Approve SPEC** (user says "approved")
+   - SPEC becomes the contract
+   - Agent implements per requirements
+
+5. **Implement & Verify**
+   - Use OpenCode's task system
+   - Verify with `verify_work`
+   - Log decisions with `spec.add_decision`
+
+### SPEC Structure
+
+```markdown
+# SPEC-001: Feature Name
+
+## Executive Summary
+2-3 sentences: WHAT + WHY
+
+## Requirements
+### REQ-001: Actor action object
+- Acceptance: Measurable criteria
+- Edge Cases: Boundaries, errors
+- Verification: How to test
+- Implementation: HOW to implement
+- Dependencies: Packages needed
+- Files to Create: New files
+- Files to Modify: Existing files
+
+## Execution Plan (Auto-Derived)
+Phases auto-generated from requirements
+
+## File Structure (Auto-Generated)
+New files + existing files to modify
+
+## Acceptance Checklist (Auto-Generated)
+Checklist from requirements
+
+## Decisions
+Logged during implementation
+
+## Verification Results
+Results after completion
+
+## Completed
+Timestamp when marked complete
+```
+
+---
+
 ## Core Principles
 
 ### 1. Atomic Operations
@@ -96,7 +170,33 @@ Automatic red-flag detection discards outputs with:
 
 Auto-retries up to **3x** before escalating to user.
 
-### 4. Verification Gates
+### 4. Context Persistence (Compaction Hook)
+
+SPEC context **persists across session compaction**:
+
+- Injected into conversation context automatically
+- Agent always sees active SPECs
+- Survives long conversations
+- No manual reloading needed
+
+**What's Injected:**
+```
+## Active SPEC: SPEC-001 - Feature Name
+- Status: draft/in_progress/complete
+- Requirements: 3
+- Tasks: 2/5 completed
+- Next Action: Add requirements/Implement tasks
+```
+
+**Benefits:**
+- Agent references SPEC naturally ("Based on REQ-001...")
+- Context survives compaction
+- No token waste on full SPEC text
+- Always knows current state
+
+---
+
+### 5. Verification Gates
 
 All gates must pass for work to be marked complete:
 

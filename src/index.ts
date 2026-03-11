@@ -97,17 +97,241 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
     },
 
     /**
+     * Inject SPEC into compaction context
+     * Ensures SPEC persists across session compaction
+     * Agent always has SPEC context even after long conversations
+     */
+    "experimental.session.compacting": async (input, output) => {
+      const fs = await import("node:fs/promises")
+      const path = await import("node:path")
+      
+      try {
+        // Find active SPECs
+        const specsDir = path.join(directory, ".opencode/specs")
+        const files = await fs.readdir(specsDir)
+        const activeSpecs: any[] = []
+        
+        for (const file of files) {
+          if (!file.endsWith(".md")) continue
+          
+          const specPath = path.join(specsDir, file)
+          const content = await fs.readFile(specPath, "utf-8")
+          
+          // Extract SPEC metadata
+          const specId = file.replace(".md", "")
+          const title = content.match(/^# SPEC-\d+: (.+)$/m)?.[1] || "Untitled"
+          const status = content.match(/Status: (✓ Complete|in_progress|draft)/)?.[1] || "draft"
+          const requirementsCount = (content.match(/REQ-\d+/g) || []).length
+          const tasksCount = (content.match(/TASK-\d+/g) || []).length
+          const completedTasks = (content.match(/\[x\]/g) || []).length
+          
+          activeSpecs.push({
+            specId,
+            title,
+            status,
+            requirementsCount,
+            tasksCount,
+            completedTasks,
+          })
+        }
+        
+        // Inject into context if there are active SPECs
+        if (activeSpecs.length > 0) {
+          const specContext = activeSpecs.map(spec => `
+## Active SPEC: ${spec.specId} - ${spec.title}
+- **Status:** ${spec.status}
+- **Requirements:** ${spec.requirementsCount}
+- **Tasks:** ${spec.completedTasks}/${spec.tasksCount} completed
+- **Next Action:** ${spec.status === "draft" ? "Add requirements" : spec.status === "in_progress" ? "Implement tasks" : "Verify and complete"}
+`).join("\n")
+          
+          output.context.push(`
+# SPEC Context (Persists Across Compaction)
+
+${specContext}
+
+**Workflow:**
+- Plan Mode: Add requirements → Validate → Approve
+- Build Mode: Implement tasks → Verify → Log decisions → Mark complete
+`)
+        }
+      } catch {
+        // No specs directory or error reading - that's okay
+      }
+    },
+
+    /**
      * Custom tools - Atomic SPEC operations
      */
     tool: {
+      // ==================== SPEC CREATION ====================
+      
+      /**
+       * Create new SPEC with Executive Summary
+       * SPEC = Plan (no separate Plan section needed)
+       * Shows ASCII box summary in chat after creation
+       */
+      create_spec: tool({
+        description: "Create new SPEC (SPEC = Plan, no separate Plan section)",
+        args: {
+          feature: z.string().describe("Feature name (e.g., 'User Authentication with Better-Auth')"),
+          summary: z.string().describe("Executive summary (2-3 sentences: WHAT + WHY)"),
+          requirements: z.array(z.object({
+            actor: z.string(),
+            action: z.string(),
+            object: z.string(),
+            acceptance: z.string(),
+            edgeCases: z.array(z.string()),
+            verification: z.string(),
+            implementation: z.string().optional(),
+            dependencies: z.array(z.string()).optional(),
+            filesToCreate: z.array(z.string()).optional(),
+            filesToModify: z.array(z.string()).optional(),
+          })).describe("Requirements with implementation guidance"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          const specId = await generateSPECId(context.directory)
+          const specPath = path.join(context.directory, ".opencode/specs", `SPEC-${specId}.md`)
+          
+          // Generate requirements markdown
+          const requirementsMarkdown = args.requirements.map((req, i) => `
+### REQ-${String(i + 1).padStart(3, "0")}: ${req.actor} ${req.action} ${req.object}
+- **Acceptance:** ${req.acceptance}
+- **Edge Cases:** ${req.edgeCases.join(", ")}
+- **Verification:** ${req.verification}${req.implementation ? `\n- **Implementation:** ${req.implementation}` : ""}${req.dependencies && req.dependencies.length > 0 ? `\n- **Dependencies:** ${req.dependencies.join(", ")}` : ""}${req.filesToCreate && req.filesToCreate.length > 0 ? `\n- **Files to Create:** ${req.filesToCreate.join(", ")}` : ""}${req.filesToModify && req.filesToModify.length > 0 ? `\n- **Files to Modify:** ${req.filesToModify.join(", ")}` : ""}
+`).join("\n")
+          
+          // Collect all files
+          const allFilesToCreate = [...new Set(args.requirements.flatMap(r => r.filesToCreate || []))]
+          const allFilesToModify = [...new Set(args.requirements.flatMap(r => r.filesToModify || []))]
+          
+          // Generate file structure section
+          const fileStructureMarkdown = `
+### New Files to Create
+${allFilesToCreate.map(f => `- \`${f}\``).join("\n") || "- None"}
+
+### Existing Files to Modify
+${allFilesToModify.map(f => `- \`${f}\``).join("\n") || "- None"}
+`
+          
+          // Generate SPEC content
+          const specContent = `# SPEC-${specId}: ${args.feature}
+
+## Executive Summary
+${args.summary}
+
+---
+
+## Requirements
+
+${requirementsMarkdown}
+
+---
+
+## Execution Plan (Auto-Derived from Requirements)
+
+### Phase 1: Setup
+- Install dependencies
+- Configure environment variables
+- Create base configuration files
+
+### Phase 2: Implementation
+- Create new files
+- Modify existing files
+- Connect components
+
+### Phase 3: Verification
+- Run tests
+- Verify all acceptance criteria
+- Fix any issues
+
+---
+
+## File Structure
+
+${fileStructureMarkdown}
+
+---
+
+## Acceptance Checklist
+${args.requirements.map((_, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: ${args.requirements[i].actor} ${args.requirements[i].action} ${args.requirements[i].object}`).join("\n")}
+
+---
+
+## Decisions
+<!-- spec.add_decision appends here -->
+
+## Verification Results
+<!-- verify_work appends here -->
+
+## Completed
+<!-- spec.mark_complete writes: HH:MM (24-hour format) -->
+`
+          
+          await fs.writeFile(specPath, specContent, "utf-8")
+          
+          // Update SPEC index
+          await updateSPECIndex(context.directory, specId, args.feature)
+          
+          // Generate ASCII box summary for chat
+          const asciiBox = `
+╔══════════════════════════════════════════════════════════╗
+║  ✅ SPEC-${specId} Created                                ║
+╠══════════════════════════════════════════════════════════╣
+║  Executive Summary:                                      ║
+║  ${args.summary.substring(0, 54).padEnd(54, " ")}║
+║                                                          ║
+║  Requirements: ${args.requirements.toString().length}                                         ║
+║  Files to Create: ${String(allFilesToCreate.length).padEnd(36, " ")}║
+║  Files to Modify: ${String(allFilesToModify.length).padEnd(36, " ")}║
+║                                                          ║
+║  Next: Review requirements, then approve SPEC            ║
+╚══════════════════════════════════════════════════════════╝
+
+Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
+`
+          
+          // Log to client (shows in chat)
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "info",
+              message: "SPEC created",
+              extra: {
+                specId: `SPEC-${specId}`,
+                feature: args.feature,
+                summary: args.summary,
+                requirementsCount: args.requirements.length,
+                filesToCreate: allFilesToCreate.length,
+                filesToModify: allFilesToModify.length,
+                asciiBox,
+              }
+            }
+          })
+          
+          return JSON.stringify({ 
+            success: true, 
+            specId: `SPEC-${specId}`,
+            feature: args.feature,
+            requirementsCount: args.requirements.length,
+            filesToCreate: allFilesToCreate.length,
+            filesToModify: allFilesToModify.length,
+          })
+        },
+      }),
+
       // ==================== ATOMIC SPEC OPERATIONS ====================
       
       /**
        * Add a single requirement to SPEC
        * Stateless: receives current state + requirement data only
+       * Includes implementation guidance, dependencies, files
        */
       "spec.add_requirement": tool({
-        description: "Add a single requirement to SPEC (atomic operation)",
+        description: "Add a single requirement to SPEC (atomic operation with implementation guidance)",
         args: {
           specId: z.string().describe("SPEC ID (e.g., 'SPEC-001')"),
           actor: z.string().describe("Who performs the action (e.g., 'User', 'System')"),
@@ -116,6 +340,10 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           acceptance: z.string().describe("Measurable acceptance criteria (include numbers, booleans, specific values)"),
           edgeCases: z.array(z.string()).describe("Edge cases and boundaries (error states, min/max values)"),
           verification: z.string().describe("How to verify (test commands, manual steps)"),
+          implementation: z.string().optional().describe("HOW to implement (brief guidance)"),
+          dependencies: z.array(z.string()).optional().describe("Packages/libraries needed"),
+          filesToCreate: z.array(z.string()).optional().describe("New files to create"),
+          filesToModify: z.array(z.string()).optional().describe("Existing files to modify"),
         },
         async execute(args, context) {
           const fs = await import("node:fs/promises")
@@ -128,18 +356,28 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           
           // Generate requirement markdown
           const reqNum = (specContent.match(/REQ-(\d+)/g) || []).length + 1
+          const reqId = `REQ-${String(reqNum).padStart(3, "0")}`
           const reqMarkdown = `
-- **REQ-${String(reqNum).padStart(3, "0")}**: ${args.actor} ${args.action} ${args.object}
-  - Acceptance: ${args.acceptance}
-  - Edge Cases: ${args.edgeCases.join(", ")}
-  - Verification: ${args.verification}
+### ${reqId}: ${args.actor} ${args.action} ${args.object}
+- **Acceptance:** ${args.acceptance}
+- **Edge Cases:** ${args.edgeCases.join(", ")}
+- **Verification:** ${args.verification}${args.implementation ? `\n- **Implementation:** ${args.implementation}` : ""}${args.dependencies && args.dependencies.length > 0 ? `\n- **Dependencies:** ${args.dependencies.join(", ")}` : ""}${args.filesToCreate && args.filesToCreate.length > 0 ? `\n- **Files to Create:** ${args.filesToCreate.join(", ")}` : ""}${args.filesToModify && args.filesToModify.length > 0 ? `\n- **Files to Modify:** ${args.filesToModify.join(", ")}` : ""}
+
 `
           
-          // Insert into Requirements section
-          specContent = specContent.replace(
-            /## Requirements\n/,
-            `## Requirements\n${reqMarkdown}`
-          )
+          // Insert into Requirements section (find last requirement or section header)
+          if (specContent.includes("## Requirements")) {
+            specContent = specContent.replace(
+              /## Requirements\n/,
+              `## Requirements\n\n${reqMarkdown}`
+            )
+          } else {
+            // Add Requirements section if missing
+            specContent = specContent.replace(
+              /## Executive Summary\n/,
+              `## Executive Summary\n\n## Requirements\n\n${reqMarkdown}`
+            )
+          }
           
           await fs.writeFile(specPath, specContent, "utf-8")
           
@@ -150,7 +388,7 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           
           return JSON.stringify({ 
             success: true, 
-            requirementId: `REQ-${String(reqNum).padStart(3, "0")}`,
+            requirementId: reqId,
             specId: args.specId
           })
         },
@@ -641,29 +879,42 @@ async function generateSPECId(directory: string): Promise<string> {
   return "001"
 }
 
-function generateSPECContent(specId: string, feature: string, value: string): string {
+function generateSPECContent(specId: string, feature: string, summary: string): string {
   return `# SPEC-${specId}: ${feature}
 
-## Value
-${value}
+## Executive Summary
+${summary}
+
+---
 
 ## Requirements
 <!-- Add requirements using spec.add_requirement -->
 
-## Plan
-<!-- To be filled after SPEC approval -->
+---
 
-## Tasks
-<!-- Add tasks using spec.add_task -->
+## Execution Plan (Auto-Derived from Requirements)
+<!-- Auto-generated when requirements are added -->
+
+---
+
+## File Structure
+<!-- Auto-generated: files to create/modify -->
+
+---
+
+## Acceptance Checklist
+<!-- Auto-generated from requirements -->
+
+---
 
 ## Decisions
-<!-- Log decisions using spec.add_decision -->
+<!-- spec.add_decision appends here -->
 
-## Verification
-<!-- Verification results after implementation -->
+## Verification Results
+<!-- verify_work appends here -->
 
 ## Completed
-<!-- Date and time when marked complete: HH:MM (24-hour format) -->
+<!-- spec.mark_complete writes: HH:MM (24-hour format) -->
 `
 }
 
@@ -739,6 +990,61 @@ function generateFeedback(breakdown: any, passed: boolean): string[] {
 /**
  * Update SPEC state (persistent + embedded)
  */
+async function updateSPECIndex(
+  directory: string,
+  specId: string,
+  feature: string
+): Promise<void> {
+  const fs = await import("node:fs/promises")
+  const path = await import("node:path")
+  
+  const indexPath = path.join(directory, ".opencode/SPEC-INDEX.md")
+  const today = new Date().toISOString().split("T")[0]
+  
+  try {
+    let indexContent = await fs.readFile(indexPath, "utf-8")
+    
+    // Add entry to table
+    const newEntry = `| SPEC-${specId} | ${feature} | draft | 1 | ${today} |`
+    
+    if (indexContent.includes("| SPEC-")) {
+      // Add after header row
+      indexContent = indexContent.replace(
+        /(\| ID \| Feature \| Status \| Iteration \| Last Updated \|)/,
+        `$1\n${newEntry}`
+      )
+    } else {
+      // Create table if doesn't exist
+      indexContent = `# SPEC Index
+
+| ID | Feature | Status | Iteration | Last Updated |
+|----|---------|--------|-----------|--------------|
+${newEntry}
+
+## Active SPECs
+
+## Archived SPECs
+`
+    }
+    
+    await fs.writeFile(indexPath, indexContent, "utf-8")
+  } catch {
+    // Index doesn't exist, create it
+    const indexContent = `# SPEC Index
+
+| ID | Feature | Status | Iteration | Last Updated |
+|----|---------|--------|-----------|--------------|
+| SPEC-${specId} | ${feature} | draft | 1 | ${today} |
+
+## Active SPECs
+
+## Archived SPECs
+`
+    await fs.mkdir(path.dirname(indexPath), { recursive: true })
+    await fs.writeFile(indexPath, indexContent, "utf-8")
+  }
+}
+
 async function updateSPECState(
   directory: string,
   specId: string,
