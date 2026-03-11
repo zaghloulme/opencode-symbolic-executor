@@ -31,7 +31,7 @@ A unified plugin that brings SPEC-driven development, intelligent tool search, a
 
 ## Installation
 
-### For Humans (Agent-Driven)
+### Agent-Driven (Recommended)
 
 **Paste this into your LLM agent:**
 
@@ -44,9 +44,7 @@ Your agent will fetch the installation guide and execute all steps automatically
 
 ---
 
-### Manual Installation (Not Recommended)
-
-If you prefer manual installation:
+### Manual Installation
 
 ```bash
 # Clone to global plugins directory
@@ -74,8 +72,6 @@ After installation, initialize a project:
 # In project directory (must have package.json or .git)
 node ~/.config/opencode/plugins/symbolic-executor/bin/init
 ```
-
-Or let your AI agent run it for you.
 
 This creates:
 - `.opencode/config.json` (MCP servers with deferLoading)
