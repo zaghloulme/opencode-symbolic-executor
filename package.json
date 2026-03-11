@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "symbolic-executor": "./bin/init.js"
+    "symbolic-executor": "bin/init.js"
   },
   "scripts": {
     "build": "tsc",
