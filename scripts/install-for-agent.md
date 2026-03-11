@@ -6,7 +6,7 @@
 
 If you're an LLM Agent helping set up symbolic-executor, follow these steps:
 
-**Note:** Installation is via GitHub (not npm) as npm publishing requires 2FA setup.
+**Note:** You can also install via npm: `npm install -g symbolic-executor`
 
 ---
 

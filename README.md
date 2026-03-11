@@ -31,7 +31,21 @@ A unified plugin that brings SPEC-driven development, intelligent tool search, a
 
 ## Installation
 
-### Agent-Driven (Recommended)
+### Option 1: npm (Recommended)
+
+**Install globally:**
+```bash
+npm install -g symbolic-executor
+```
+
+**Initialize project:**
+```bash
+symbolic-executor init
+```
+
+---
+
+### Option 2: GitHub (Agent-Driven)
 
 **Paste this into your LLM agent:**
 
@@ -44,7 +58,7 @@ Your agent will fetch the installation guide and execute all steps automatically
 
 ---
 
-### Manual Installation
+### Option 3: GitHub (Manual)
 
 ```bash
 # Clone to global plugins directory
@@ -70,7 +84,7 @@ After installation, initialize a project:
 
 ```bash
 # In project directory (must have package.json or .git)
-node ~/.config/opencode/plugins/symbolic-executor/bin/init
+symbolic-executor init
 ```
 
 This creates:
