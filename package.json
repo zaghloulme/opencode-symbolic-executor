@@ -1,10 +1,13 @@
 {
-  "name": "@opencode/symbolic-executor",
+  "name": "symbolic-executor",
   "version": "0.1.0",
   "description": "Symbolic-first code executor with SPEC-driven development, tool search, and verification gates",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "symbolic-executor": "./bin/init.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

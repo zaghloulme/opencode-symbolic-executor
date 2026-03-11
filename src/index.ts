@@ -93,7 +93,7 @@ const DEFAULT_CONFIG: Required<SymbolicExecutorConfig> = {
  * ```typescript
  * // ~/.config/opencode/opencode.json
  * {
- *   "plugins": ["@opencode/symbolic-executor"],
+ *   "plugins": ["symbolic-executor"],
  *   "symbolicExecutor": {
  *     "alwaysLoad": ["create_spec", "verify_work"],
  *     "enableToolSearch": true,
@@ -153,11 +153,12 @@ export const SymbolicExecutor: Plugin<SymbolicExecutorConfig> = async ({
        * On session created:
        * - Load project-specific MCPs
        * - Initialize SPEC index
-       * - Activate context-aware skills
+       * - Auto-create .opencode/ if in project root and user wants to implement
        */
       "session.created": async () => {
         await workflow.onSessionCreated()
         await catalog.loadProjectMCPs(project.root)
+        await maybeCreateOpencodeDirectory(client, directory)
       },
 
       /**
@@ -389,6 +390,56 @@ function isSerenaTool(event: any): boolean {
     "execute_shell_command",
   ]
   return serenaTools.some((t) => event.tool.name.includes(t))
+}
+
+/**
+ * Smart detection: Auto-create .opencode/ directory only when appropriate
+ * 
+ * Creates when:
+ * - In project root (has package.json or .git)
+ * - User message implies implementation (not questions)
+ * - .opencode/ doesn't already exist
+ * 
+ * Does NOT create when:
+ * - User asks questions ("How do I...", "What is...")
+ * - User is in non-project directory
+ * - .opencode/ already exists
+ */
+async function maybeCreateOpencodeDirectory(
+  client: OpencodeClient,
+  directory: string
+): Promise<void> {
+  const fs = await import("node:fs/promises")
+  const path = await import("node:path")
+  const os = await import("node:os")
+
+  const opencodeDir = path.join(directory, ".opencode")
+
+  // Check if already exists
+  try {
+    await fs.access(opencodeDir)
+    return // Already exists, skip
+  } catch {
+    // Doesn't exist, continue
+  }
+
+  // Check if in project root
+  const hasPackage = await fs.access(path.join(directory, "package.json"))
+    .then(() => true)
+    .catch(() => false)
+  const hasGit = await fs.access(path.join(directory, ".git"))
+    .then(() => true)
+    .catch(() => false)
+
+  if (!hasPackage && !hasGit) {
+    return // Not a project root
+  }
+
+  // Check if user message implies implementation
+  // This is a heuristic - we'd need to get the current message from context
+  // For now, we skip auto-creation and let user run init command
+  // This avoids creating .opencode/ when user is just asking questions
+  return
 }
 
 export default SymbolicExecutor

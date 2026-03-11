@@ -31,12 +31,28 @@ A unified plugin that brings SPEC-driven development, intelligent tool search, a
 
 ## Installation
 
-### Global Installation
+### For Humans (Agent-Driven)
+
+**Paste this into your LLM agent:**
+
+```
+Install symbolic-executor for OpenCode:
+https://raw.githubusercontent.com/zaghloulme/opencode-symbolic-executor/refs/heads/main/scripts/install-for-agent.md
+```
+
+Your agent will fetch the installation guide and execute all steps automatically.
+
+---
+
+### Manual Installation (Not Recommended)
+
+If you prefer manual installation:
 
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/opencode-symbolic-executor
-cd opencode-symbolic-executor
+# Clone to global plugins directory
+mkdir -p ~/.config/opencode/plugins
+git clone https://github.com/zaghloulme/opencode-symbolic-executor.git ~/.config/opencode/plugins/symbolic-executor
+cd ~/.config/opencode/plugins/symbolic-executor
 
 # Install dependencies
 bun install
@@ -44,35 +60,30 @@ bun install
 # Build
 bun run build
 
-# Link globally
-bun link
+# Merge config (creates backup)
+node scripts/merge-config.js
 ```
 
-### Project Setup
+---
+
+### Project Initialization
+
+After installation, initialize a project:
 
 ```bash
-# In your project directory
-mkdir -p .opencode
-
-# Copy config template
-cp node_modules/@opencode/symbolic-executor/.opencode/templates/config.json .opencode/config.json
+# In project directory (must have package.json or .git)
+node ~/.config/opencode/plugins/symbolic-executor/bin/init
 ```
 
-### Configure OpenCode
+Or let your AI agent run it for you.
 
-Edit `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "plugins": ["@opencode/symbolic-executor"],
-  "symbolicExecutor": {
-    "alwaysLoad": ["create_spec", "review_plan", "verify_work"],
-    "enableToolSearch": true,
-    "visualThreshold": 0.90,
-    "maxRevisions": 3
-  }
-}
-```
+This creates:
+- `.opencode/config.json` (MCP servers with deferLoading)
+- `.opencode/constitution.md` (project principles)
+- `.opencode/SPEC-INDEX.md` (SPEC tracker)
+- `.opencode/specs/` (individual SPECs)
+- `.opencode/mistakes/` (mistake index)
+- `.opencode/decisions/` (decision logs)
 
 ## Usage
 
