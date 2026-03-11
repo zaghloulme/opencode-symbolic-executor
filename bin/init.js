@@ -22,9 +22,9 @@
  * - Sample decisions (users document their own)
  */
 
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 
 // Template paths
 const PLUGIN_DIR = path.join(os.homedir(), '.config/opencode/plugins/symbolic-executor')

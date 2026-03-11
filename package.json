@@ -1,6 +1,6 @@
 {
   "name": "symbolic-executor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "SPEC-driven development workflow for OpenCode",
   "type": "module",
   "bin": {
