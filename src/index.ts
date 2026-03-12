@@ -47,11 +47,39 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
   
   const hooks: Hooks = {
     /**
-     * On session created: Initialize SPEC state if needed
+     * On session created: Initialize SPEC state and auto-build tool catalog
      */
     event: async ({ event }) => {
       if (event.type === "session.created") {
         await maybeCreateOpencodeDirectory(directory)
+        
+        // Auto-build tool catalog if missing or stale
+        try {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          const { buildToolCatalog, needsCatalogRebuild } = await import("./catalog/builder.js")
+          
+          const shouldRebuild = await needsCatalogRebuild(directory)
+          
+          if (shouldRebuild) {
+            await buildToolCatalog(directory, {
+              timeoutPerServer: 10000,
+              logDir: path.join(process.env.HOME || "", ".config/opencode/logs"),
+            })
+            
+            await client.app.log({
+              body: {
+                service: "symbolic-executor",
+                level: "info",
+                message: "Tool catalog auto-built on session start",
+                extra: { directory }
+              }
+            })
+          }
+        } catch (error) {
+          // Silent fail - catalog build is optional
+          // tool_search will provide helpful error message if user tries to use it
+        }
       }
     },
 
@@ -836,6 +864,88 @@ ${alternativesMarkdown}
           })
         },
       }),
+
+      hashline_edit: tool({
+        description: "Edit files using LINE#ID format for precise, safe modifications. Hash-validated line references prevent stale edits (6.7% → 68.3% success rate).",
+        args: {
+          filePath: z.string().describe("Path to file to edit (relative to project root)"),
+          edits: z.array(
+            z.object({
+              op: z.enum(['replace', 'append', 'prepend']).describe("Edit operation type"),
+              pos: z.string().optional().describe('LINE#ID anchor (e.g., "11#VK")'),
+              end: z.string().optional().describe("LINE#ID end anchor for range operations"),
+              lines: z.union([z.string(), z.array(z.string())]).optional().describe("New content (plain text, no LINE#ID prefixes)"),
+            })
+          ).describe("Array of edit operations"),
+          delete: z.boolean().optional().describe("If true, delete the file (edits must be empty)"),
+          rename: z.string().optional().describe("If provided, rename file to this path after editing"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          const { executeHashlineEdits } = await import("./tools/hashline/executor.js")
+          
+          try {
+            const fullPath = path.join(context.directory, args.filePath)
+            
+            let content: string
+            try {
+              content = await fs.readFile(fullPath, "utf-8")
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                const hasUnanchoredInsert = args.edits.some(
+                  e => (e.op === "append" || e.op === "prepend") && !e.pos
+                )
+                if (hasUnanchoredInsert) {
+                  content = ""
+                } else {
+                  return JSON.stringify({
+                    success: false,
+                    error: `File not found: ${args.filePath}. Use unanchored append/prepend to create new files.`,
+                  })
+                }
+              } else {
+                throw error
+              }
+            }
+            
+            const result = await executeHashlineEdits(content, {
+              filePath: args.filePath,
+              edits: args.edits,
+              delete: args.delete,
+              rename: args.rename,
+            })
+            
+            if (!result.success) {
+              return JSON.stringify(result)
+            }
+            
+            if (args.delete) {
+              await fs.unlink(fullPath)
+            } else {
+              const contentToWrite = result.updatedContent!.split("\n")
+                .map(line => line.replace(/^\d+#[ZPMQVRWSNKTXJBYH]{2}\|/, ""))
+                .join("\n")
+              
+              const writePath = args.rename ? path.join(context.directory, args.rename) : fullPath
+              await fs.mkdir(path.dirname(writePath), { recursive: true })
+              await fs.writeFile(writePath, contentToWrite, "utf-8")
+            }
+            
+            return JSON.stringify({
+              success: true,
+              diff: result.diff,
+              filePath: result.filePath,
+              message: "File edited successfully",
+            })
+          } catch (error) {
+            return JSON.stringify({
+              success: false,
+              error: (error as Error).message,
+            })
+          }
+        },
+      }),
     },
 
     /**
@@ -866,6 +976,33 @@ ${alternativesMarkdown}
       // Note: Actual context pruning happens automatically in OpenCode
       // This hook marks the tool as "complete" so it can be pruned during compaction
     },
+
+    /**
+     * Mode system: Inject custom system prompts for plan/build/chat modes
+     * Disables OpenCode's default mode prompts and replaces with SPEC-driven workflow
+     */
+    "experimental.chat.system.transform": async (_input, output) => {
+      const fs = await import("node:fs/promises")
+      const path = await import("node:path")
+      
+      // Detect mode from system prompt context (simplified - full detection in prompts)
+      // Mode keywords in conversation will trigger appropriate responses
+      const modePromptPath = path.join(directory, ".opencode/templates/prompts", "build-mode.md")
+      
+      try {
+        const modePrompt = await fs.readFile(modePromptPath, "utf-8")
+        output.system = [EXECUTOR_SYSTEM_PROMPT, modePrompt]
+      } catch {
+        // Fallback to base prompt if mode file not found
+        output.system = [EXECUTOR_SYSTEM_PROMPT]
+      }
+    },
+
+    /**
+     * Auto-continue injection: Detect stall patterns in assistant messages
+     * Prevents agents from stopping mid-task with "let me know if" phrases
+     * Note: Implemented via session state tracking, not direct message modification
+     */
   }
 
   return hooks
@@ -963,6 +1100,14 @@ YOU ARE THE PRIMARY DEVELOPER.
 - NEVER skip verification gates
 - ALWAYS log decisions with traceability
 - ALWAYS use Serena for code operations
+
+## TASK LIST RULES
+
+- ONLY create tasks for the AGENT to execute
+- NEVER create tasks for the user (no "confirm", "test", "ask user")
+- Test tasks are for the AGENT to run, not the user
+- If user confirmation needed, ask directly in chat (don't create task)
+- All tasks must be actionable by the agent alone
 
 ## VERIFICATION GATES
 

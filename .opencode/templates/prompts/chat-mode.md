@@ -20,3 +20,7 @@
 
 **DO**: Answer freely, use creativity, research when needed
 **DO NOT**: Create SPECs unless explicitly requested
+
+**TASK LIST RULES**:
+- Chat mode does NOT use task lists
+- If task-worthy complexity detected, suggest switching to Plan Mode

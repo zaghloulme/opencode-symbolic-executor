@@ -18,3 +18,9 @@
 **Exit Condition**: User says "approved", "proceed", or "implement"
 
 **DO NOT**: Modify files, implement code, run commands
+
+**TASK LIST RULES**:
+- ONLY create tasks for the AGENT to execute
+- NEVER create tasks for the user (no "confirm", "test", "ask user")
+- If user confirmation needed, ask directly in chat (don't create task)
+- All tasks must be actionable by the agent alone

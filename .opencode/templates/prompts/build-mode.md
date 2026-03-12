@@ -20,3 +20,10 @@
 **Auto-Trigger**: When user says "proceed", "implement", "continue" with active SPEC
 
 **DO**: Modify files, run commands, verify, log decisions
+
+**TASK LIST RULES**:
+- ONLY create tasks for the AGENT to execute
+- NEVER create tasks for the user (no "confirm", "test", "ask user")
+- Test tasks are for the AGENT to run, not the user
+- If user confirmation needed, ask directly in chat (don't create task)
+- All tasks must be actionable by the agent alone
