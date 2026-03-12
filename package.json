@@ -1,12 +1,13 @@
 {
   "name": "opencode-symbolic-executor",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "SPEC-driven development workflow for OpenCode",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "opencode-symbolic-executor": "bin/init.js"
+    "opencode-symbolic-executor": "bin/init.js",
+    "opencode-build-catalog": "bin/build-catalog.js"
   },
   "scripts": {
     "build": "tsc",

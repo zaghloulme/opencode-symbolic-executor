@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "builtAt": "2026-03-11T19:55:58.444Z",
+  "servers": {
+    "serena": {
+      "command": [
+        "/home/main/.local/bin/uvx",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "next-devtools": {
+      "command": [
+        "npx",
+        "-y",
+        "next-devtools-mcp@latest"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "context7": {
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "ctx7sk-bc52e3be-469b-4b9e-b5a9-7fa29ff0ec54"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "docling": {
+      "command": [
+        "/home/main/.local/bin/uvx",
+        "--python",
+        "3.11",
+        "--from",
+        "docling-mcp",
+        "docling-mcp-server"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "sequential-thinking": {
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "git": {
+      "command": [
+        "/home/main/.local/bin/uvx",
+        "mcp-server-git"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "kindly-websearch": {
+      "command": [
+        "/home/main/.local/bin/uvx",
+        "--from",
+        "git+https://github.com/Shelpuk-AI-Technology-Consulting/kindly-web-search-mcp-server",
+        "kindly-web-search-mcp-server",
+        "start-mcp-server"
+      ],
+      "deferLoading": true,
+      "tools": []
+    },
+    "lighthouse": {
+      "command": [
+        "npx",
+        "-y",
+        "lighthouse-mcp"
+      ],
+      "deferLoading": true,
+      "tools": []
+    }
+  }
+}

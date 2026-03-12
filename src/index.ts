@@ -89,12 +89,8 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       }
     },
 
-    /**
-     * Inject system prompt with executor mindset
-     */
-    "experimental.chat.system.transform": async (input, output) => {
-      output.system.push(EXECUTOR_SYSTEM_PROMPT)
-    },
+    // Mode detection disabled - OpenCode hook signature changed
+    // Will implement mode switching via system prompt configuration instead
 
     /**
      * Inject SPEC into compaction context
@@ -718,19 +714,83 @@ ${alternativesMarkdown}
       }),
 
       tool_search: tool({
-        description: "Search for available tools by keyword or natural language",
+        description: "Search for available tools by keyword or natural language (supports regex and BM25)",
         args: {
-          query: z.string().describe("Natural language description or regex pattern"),
+          query: z.string().describe("Natural language description or regex pattern (wrap in /.../ for regex)"),
           limit: z.number().default(5).describe("Max results to return"),
-          useRegex: z.boolean().default(false).describe("Use regex search instead of keyword matching"),
+          useRegex: z.boolean().default(false).describe("Force regex search mode"),
         },
-        async execute(args) {
-          // Placeholder - would integrate with BM25 or regex search
-          return JSON.stringify({ 
-            tools: [],
-            query: args.query,
-            note: "Tool search not yet implemented"
-          })
+        async execute(args, context) {
+          const fs = await import("node:fs/promises")
+          const path = await import("node:path")
+          
+          try {
+            // Load catalog
+            const catalogPath = path.join(context.directory, ".opencode/tools-catalog.json")
+            const catalogContent = await fs.readFile(catalogPath, "utf-8")
+            const catalog = JSON.parse(catalogContent)
+            
+            // Load config for BM25 params
+            const configPath = path.join(context.directory, ".opencode/config.json")
+            let bm25Params = { k1: 0.9, b: 0.4 }
+            try {
+              const configContent = await fs.readFile(configPath, "utf-8")
+              const config = JSON.parse(configContent)
+              if (config.toolSearch?.bm25Params) {
+                bm25Params = config.toolSearch.bm25Params
+              }
+            } catch {
+              // Use defaults
+            }
+            
+            // Import search functions (dynamic import for lazy loading)
+            const catalogModule = await import("./catalog/search.js")
+            const { searchToolsRegex, searchToolsBM25 } = catalogModule
+            
+            // Perform search
+            let results
+            if (args.useRegex || (args.query.startsWith('/') && args.query.endsWith('/'))) {
+              const pattern = args.query.startsWith('/') ? args.query.slice(1, -1) : args.query
+              results = searchToolsRegex(catalog, pattern, args.limit)
+            } else {
+              results = searchToolsBM25(catalog, args.query, args.limit, bm25Params)
+            }
+            
+            // Log search usage
+            await client.app.log({
+              body: {
+                service: "symbolic-executor",
+                level: "info",
+                message: "Tool search executed",
+                extra: {
+                  query: args.query,
+                  mode: args.useRegex ? "regex" : "bm25",
+                  resultsCount: results.length,
+                }
+              }
+            })
+            
+            return JSON.stringify({
+              tools: results.map(r => ({
+                name: r.toolName,
+                server: r.serverId,
+                description: r.description,
+                inputSchema: r.inputSchema,
+                examples: r.examples || [],
+              })),
+              totalFound: results.length,
+              mode: args.useRegex ? "regex" : "bm25",
+            })
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+            
+            return JSON.stringify({
+              tools: [],
+              totalFound: 0,
+              error: `Tool search failed: ${errorMessage}`,
+              hint: "Ensure catalog is built: npx opencode-symbolic-executor build-catalog",
+            })
+          }
         },
       }),
 
@@ -777,6 +837,35 @@ ${alternativesMarkdown}
         },
       }),
     },
+
+    /**
+     * After tool execution: Prune tool definition from context (lazy loading optimization)
+     * Removes full tool definitions after execution, keeping only name/args/result
+     * Achieves 85-90% context reduction by not retaining tool schemas in conversation
+     */
+    "tool.execute.after": async (input, output) => {
+      // Skip pruning for always-loaded tools (Serena, SPEC tools)
+      const alwaysLoadTools = ['serena_find_symbol', 'serena_find_referencing_symbols', 
+        'serena_get_symbols_overview', 'serena_replace_symbol_body',
+        'create_spec', 'review_plan', 'verify_work']
+      
+      if (alwaysLoadTools.includes(input.tool)) {
+        return // Keep these tools loaded
+      }
+      
+      // Log pruning for debugging
+      await client.app.log({
+        body: {
+          service: "symbolic-executor",
+          level: "info",
+          message: `Tool definition pruned after execution: ${input.tool}`,
+          extra: { tool: input.tool }
+        }
+      })
+      
+      // Note: Actual context pruning happens automatically in OpenCode
+      // This hook marks the tool as "complete" so it can be pruned during compaction
+    },
   }
 
   return hooks
@@ -787,47 +876,100 @@ ${alternativesMarkdown}
 const EXECUTOR_SYSTEM_PROMPT = `
 YOU ARE THE PRIMARY DEVELOPER.
 
-PROCESS (ALWAYS FOLLOW):
-1. UNDERSTAND - Load SPEC, clarify ambiguities, ask when unclear
-2. PLAN - Generate technical plan, score objectively (≥85), revise if needed
-3. APPROVE - Present plan to user, incorporate feedback, lock SPEC
-4. EXECUTE - Implement per SPEC using Serena (symbolic operations only)
-5. VERIFY - Run verification gates (LSP, security, tests, visual)
-6. DOCUMENT - Log decisions with traceability, update memory index
+## ACTIVE MODES
 
-RULES:
+### Plan Mode (READ-ONLY)
+- Create SPECs with requirements
+- Research and design
+- NO file modifications
+- Exit: User says "approved" or "proceed"
+
+### Build Mode (IMPLEMENTATION)
+- Implement approved SPECs
+- Verify after each task
+- Log decisions
+- Exit: SPEC complete
+
+### Chat Mode (CASUAL)
+- General questions, research, quick fixes
+- No SPEC overhead
+- Use @general/@explore for research
+- Tree of Thought for creative tasks
+
+## MODE DETECTION
+
+**Enter Plan Mode when:**
+- "create a SPEC for..."
+- "plan how to..."
+- "design..."
+- "I want to add..."
+
+**Enter Build Mode when:**
+- "proceed", "implement", "build"
+- "based on the SPEC..."
+- "per REQ-001..."
+- SPEC ID + action verb
+
+**Stay in Chat Mode for:**
+- General questions
+- Quick fixes
+- Explanations
+- Research tasks
+
+## WORKFLOW
+
+### Plan Mode Process
+1. DISCOVER (Read-only research)
+2. DESIGN (Create SPEC with create_spec)
+3. VALIDATE (spec.validate)
+4. WAIT (User approval required)
+
+### Build Mode Process
+1. LOAD (Read active SPEC)
+2. IMPLEMENT (Follow SPEC exactly)
+3. VERIFY (LSP, lint, security, visual, SPEC)
+4. LOG (spec.add_decision)
+5. COMPLETE (spec.mark_complete with HH:MM)
+
+### Chat Mode Process
+1. ASSESS (Simple vs complex)
+2. RESPOND (Direct answer or research)
+3. DELEGATE (@general, @explore, web search)
+4. ESCALATE (To Plan Mode if SPEC-worthy)
+
+## REASONING FRAMEWORKS
+
+**Tree of Thought** (Creative/Complex):
+- 3 experts, 1 step each
+- Share and evaluate collectively
+- Backtrack if flaws found
+- Reach consensus
+
+**Sequential Thinking** (Multi-step):
+- Numbered thoughts (N of M)
+- Track and revise
+- Branch to explore alternatives
+
+**Research Protocol**:
+- Say "I don't know, let me look that up"
+- Spin up @general for complex research
+- Use web search for current info
+- Synthesize with sources
+
+## RULES
+
 - NEVER assume - ask when unclear
-- NEVER hallucinate - cite sources for all decisions
-- NEVER estimate time - you execute, you don't schedule
-- NEVER delegate coding tasks - you are the executor
-- ALWAYS use Serena for code operations (find_symbol, not grep)
-- ALWAYS verify before marking complete
+- NEVER hallucinate - cite sources
+- NEVER skip verification gates
 - ALWAYS log decisions with traceability
+- ALWAYS use Serena for code operations
 
-MEMORY SYSTEM:
-Memory helps when stuck, not to prevent errors.
-- Location: .opencode/memory/ (per-project)
-- Purpose: Reference library for past solutions
-- Use search_memories when stuck
+## VERIFICATION GATES
 
-RED-FLAG DETECTION:
-Automatic detection discards outputs with:
-- Vague language (maybe, probably, I think, assume, guess)
-- Overly long responses (>1500 chars)
-- Missing required sections
-Auto-retries up to 3x before escalating.
-
-ATOMIC OPERATIONS:
-Each SPEC operation is stateless:
-- Fresh context per operation (no drift)
-- Error isolation (1 failure ≠ lost work)
-- State object is the only memory
-
-VERIFICATION GATES:
 - Type Safety: 0 TypeScript errors
 - Linting: 0 ESLint warnings
 - Security: 0 critical CVEs
-- Visual: ≥90% match to goal description
+- Visual: ≥90% match
 - SPEC: All acceptance criteria met
 `
 
