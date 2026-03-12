@@ -53,6 +53,9 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       if (event.type === "session.created") {
         await maybeCreateOpencodeDirectory(directory)
         
+        // Auto-install agents if missing
+        await installAgents()
+        
         // Auto-build tool catalog if missing or stale
         try {
           const fs = await import("node:fs/promises")
@@ -1358,4 +1361,46 @@ async function updateSPECState(
   Object.assign(state, updates)
   
   await fs.writeFile(statePath, JSON.stringify(state, null, 2), "utf-8")
+}
+
+/**
+ * Install plan/build/chat agents if missing
+ * Idempotent: skips agents that already exist
+ * Runs silently on OpenCode boot - no logging, no notifications
+ */
+async function installAgents(): Promise<void> {
+  const fs = await import("node:fs/promises")
+  const path = await import("node:path")
+  const os = await import("node:os")
+  
+  const agentDir = path.join(os.homedir(), ".config/opencode/agents")
+  const templateDir = path.join(__dirname, "../.opencode/templates/agents")
+  
+  const agents = ["spec-plan", "spec-build", "chat"]
+  
+  // Ensure agent directory exists
+  await fs.mkdir(agentDir, { recursive: true })
+  
+  for (const agent of agents) {
+    const agentPath = path.join(agentDir, `${agent}.md`)
+    const templatePath = path.join(templateDir, `${agent}.md`)
+    
+    try {
+      // Check if agent already exists
+      await fs.access(agentPath)
+      // Agent exists, skip silently
+      continue
+    } catch {
+      // File doesn't exist, proceed with installation
+    }
+    
+    try {
+      // Read template
+      const template = await fs.readFile(templatePath, "utf-8")
+      // Write agent file
+      await fs.writeFile(agentPath, template, "utf-8")
+    } catch {
+      // Silent fail - agents are optional, user can create manually
+    }
+  }
 }
