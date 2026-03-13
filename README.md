@@ -15,9 +15,11 @@ SPEC-driven development for OpenCode with hash-anchored edits and lazy MCP tool 
 The plugin automatically installs three agents on first load:
 
 ### spec-plan (READ-ONLY)
+
 SPEC-driven planning and requirements gathering.
 
 **Permissions**:
+
 - ❌ No file edits, creates, or deletes
 - ❌ No bash commands
 - ✅ Can create SPECs in `.opencode/specs/`
@@ -26,9 +28,11 @@ SPEC-driven planning and requirements gathering.
 **Use for**: Creating SPECs, analyzing codebase, designing solutions
 
 ### spec-build (FULL ACCESS)
+
 SPEC implementation and verification.
 
 **Permissions**:
+
 - ✅ Full file edit/create/delete access
 - ⚠️ Bash commands require approval (prefers Serena tools)
 - ✅ Uses Serena for file operations
@@ -37,9 +41,11 @@ SPEC implementation and verification.
 **Use for**: Implementing SPEC requirements, verifying with gates
 
 ### chat (ASK-FIRST)
+
 Casual conversation, brainstorming, and research.
 
 **Permissions**:
+
 - ⚠️ All file operations require approval
 - ⚠️ Bash commands require approval
 - ✅ Free to use search/research tools
@@ -73,7 +79,13 @@ Edit `~/.config/opencode/opencode.json`:
 {
   "mcp": {
     "serena": {
-      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      "command": [
+        "uvx",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server"
+      ],
       "enabled": true,
       "type": "local"
     },
@@ -93,15 +105,58 @@ Create `.opencode/config.json` in project root:
 ```json
 {
   "mcpServers": {
-    "sanity": {
-      "command": ["npx", "-y", "@sanity/mcp-server"],
-      "deferLoading": true
+    "serena": {
+      "command": [
+        "uvx",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide",
+        "--project",
+        "/absolute/path/to/your/project",
+        "--open-web-dashboard",
+        "False"
+      ],
+      "deferLoading": true,
+      "triggers": [
+        "code",
+        "symbol",
+        "refactor",
+        "edit",
+        "find",
+        "search",
+        "typescript",
+        "vue"
+      ],
+      "description": "Symbolic code operations (deferred loading for token efficiency)"
     }
   }
 }
 ```
 
-Global MCPs load for all projects. Local MCPs override per-project.
+**Configuration flags explained:**
+
+| Flag                         | Purpose                                                         |
+| ---------------------------- | --------------------------------------------------------------- |
+| `--context ide`              | Reduces tool duplication for terminal/IDE clients               |
+| `--project <path>`           | Auto-activates project at startup (no manual activation needed) |
+| `--open-web-dashboard False` | Disables web UI (saves resources in remote dev environments)    |
+| `deferLoading: true`         | On-demand tool loading (saves ~1000+ tokens per session)        |
+| `triggers`                   | Loads Serena only when relevant keywords are detected           |
+
+**Global MCPs** load for all projects. **Local MCPs** (`.opencode/config.json`) override per-project.
+
+### Project Registration
+
+Serena stores project configurations globally in `~/.serena/projects/`. To register a new project:
+
+```bash
+uvx --from git+https://github.com/oraios/serena serena project create /path/to/project --index
+```
+
+Or use the `serena_activate_project` tool within an OpenCode session.
 
 ## Usage
 

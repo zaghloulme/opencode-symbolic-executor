@@ -1,13 +1,38 @@
 {
   "$schema": "https://opencode.ai/schemas/config.json",
   "$comment": "MCP servers are configured globally in ~/.config/opencode/opencode.json - DO NOT add example MCPs here",
-  "mcpServers": {},
+  "mcpServers": {
+    "$comment": "Serena MCP configuration template - copy to project .opencode/config.json and customize",
+    "serena": {
+      "command": [
+        "uvx",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "ide",
+        "--project",
+        "${PROJECT_PATH}",
+        "--open-web-dashboard",
+        "False"
+      ],
+      "deferLoading": true,
+      "triggers": [
+        "code",
+        "symbol",
+        "refactor",
+        "edit",
+        "find",
+        "search",
+        "typescript",
+        "vue"
+      ],
+      "description": "Symbolic code operations (deferred loading for token efficiency)"
+    }
+  },
   "toolSearch": {
-    "alwaysLoad": [
-      "create_spec",
-      "review_plan",
-      "verify_work"
-    ],
+    "alwaysLoad": ["create_spec", "review_plan", "verify_work"],
     "enableToolSearch": true,
     "bm25Params": {
       "k1": 0.9,
@@ -17,7 +42,7 @@
   "symbolicExecutor": {
     "enableSPECWorkflow": true,
     "enableVerification": true,
-    "visualThreshold": 0.90,
+    "visualThreshold": 0.9,
     "maxRevisions": 3
   }
 }
