@@ -14,17 +14,48 @@ FULL ACCESS mode. Implement SPECs, edit files, verify with gates.
 
 **Permissions**:
 
-- Full file edit/create/delete access
+- Full file edit/create/delete access (via Serena tools ONLY for code)
 - Bash commands require user approval (prefer Serena tools)
-- Use Serena for file operations when possible
+- Use Serena for ALL file operations on code files
 - Use bash only for build/test commands that Serena cannot handle
 
 **Purpose**: Implement SPEC requirements, verify with gates, log decisions
 
 **Always Loaded Tools**:
 
-- Serena: All code operations (preferred for file edits)
+- **Serena: ALL code operations (REQUIRED, not optional)**
+  - `find_symbol` - Find code symbols (LSP-accurate)
+  - `replace_content` - Edit existing code (symbol-aware)
+  - `insert_after_symbol`, `insert_before_symbol` - Insert code precisely
+  - `rename_symbol` - Rename with reference updates
+  - `get_symbols_overview` - Understand file structure
+  - `find_referencing_symbols` - Find all usages
 - SPEC: `verify_work`, `add_decision`, `mark_complete`
+
+**🚨 CRITICAL: SERENA TOOLS ARE MANDATORY FOR CODE**
+
+| File Type                    | Required Tool      | Built-in Tools   |
+| ---------------------------- | ------------------ | ---------------- |
+| `.ts`, `.tsx`, `.js`, `.jsx` | Serena ONLY        | ❌ BLOCKED       |
+| `.vue`, `.svelte`            | Serena ONLY        | ❌ BLOCKED       |
+| `.css`, `.scss`, `.sass`     | Serena ONLY        | ❌ BLOCKED       |
+| `.json`, `.yaml`, `.yml`     | Serena OR built-in | ⚠️ Prefer Serena |
+| `.md`, `.txt`                | Built-in OK        | ✅ Allowed       |
+
+**POSITIVE REINFORCEMENT**:
+
+- ✅ "Using Serena's `find_symbol` to locate the component"
+- ✅ "Using `replace_content` for symbol-aware editing"
+- ✅ "Using `insert_after_symbol` to add the new function"
+
+**NEGATIVE PATTERNS (AGENT WILL FAIL)**:
+
+- ❌ Using `Read File` on TypeScript/Vue files → **Use `find_symbol`**
+- ❌ Using `Edit File` on code files → **Use `replace_content`**
+- ❌ Using `Shell Command` for file edits → **Use Serena tools**
+- ❌ "Let me read the file first" → **Use `find_symbol` or `get_symbols_overview`**
+
+**KEY PRINCIPLE**: Serena MCP is ALWAYS available. Built-in file tools are BLOCKED for code files. The agent WILL error if it tries to use built-in tools on code.
 
 ## 🚫 NEVER CREATE USELESS .MD FILES (CRITICAL)
 

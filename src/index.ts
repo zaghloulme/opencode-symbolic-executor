@@ -88,6 +88,33 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           // Silent fail - catalog build is optional
           // tool_search will provide helpful error message if user tries to use it
         }
+
+        // Check if Serena MCP is configured and warn if not
+        try {
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+          const configPath = path.join(directory, ".opencode/config.json");
+          const configContent = await fs.readFile(configPath, "utf-8");
+          const config = JSON.parse(configContent);
+
+          const hasSerena = config.mcpServers?.serena !== undefined;
+          if (!hasSerena) {
+            await client.app.log({
+              body: {
+                service: "symbolic-executor",
+                level: "warn",
+                message: "Serena MCP not configured in .opencode/config.json",
+                extra: {
+                  hint: "Serena MCP is REQUIRED for code operations in spec-build mode. Add serena to mcpServers.",
+                  config:
+                    "See .opencode/templates/config.json for Serena configuration template",
+                },
+              },
+            });
+          }
+        } catch {
+          // Config not found or parse error - that's okay, will fail on tool usage
+        }
       }
     },
 
@@ -127,7 +154,7 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         }
       }
 
-      // Warn when built-in file tools are used on code files (Serena preferred)
+      // BLOCK built-in file tools on code files (Serena REQUIRED)
       const codeFileExtensions = [
         ".ts",
         ".tsx",
@@ -135,6 +162,10 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         ".jsx",
         ".vue",
         ".svelte",
+        ".css",
+        ".scss",
+        ".sass",
+        ".less",
       ];
       const filePath = output.args?.path || output.args?.filePath || "";
       const isCodeFile = codeFileExtensions.some((ext) =>
@@ -142,20 +173,42 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       );
 
       if (isCodeFile) {
-        if (input.tool === "edit_file" || input.tool === "write_file") {
+        const blockedTools = [
+          "edit_file",
+          "write_file",
+          "read_file",
+          "create_file",
+        ];
+        if (blockedTools.includes(input.tool)) {
+          const serenaAlternatives = {
+            edit_file:
+              "replace_content (for edits) or insert_after_symbol/insert_before_symbol (for inserts)",
+            write_file: "replace_content (Serena preserves structure)",
+            read_file: "find_symbol (LSP-accurate) or get_symbols_overview",
+            create_file: "replace_content with new file path",
+          };
+
           await client.app.log({
             body: {
               service: "symbolic-executor",
-              level: "warn",
-              message: `Built-in ${input.tool} used on code file instead of Serena tool`,
+              level: "error",
+              message: `BLOCKED: Built-in ${input.tool} on code file ${filePath}`,
               extra: {
                 tool: input.tool,
                 file: filePath,
-                suggestion:
-                  "Use Serena's replace_content, insert_after_symbol, or insert_before_symbol for code-aware editing",
+                reason:
+                  "Built-in file tools are BLOCKED for code files. Use Serena MCP tools.",
+                suggestion: `Use Serena's ${serenaAlternatives[input.tool as keyof typeof serenaAlternatives]}`,
               },
             },
           });
+
+          throw new Error(
+            `BLOCKED: Cannot use ${input.tool} on code file '${filePath}'. ` +
+              `Serena MCP tools are REQUIRED for code operations. ` +
+              `Use: ${serenaAlternatives[input.tool as keyof typeof serenaAlternatives]}. ` +
+              `Serena MCP is available - check .opencode/config.json for serena server config.`,
+          );
         }
       }
 
