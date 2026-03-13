@@ -1,0 +1,19 @@
+name: query_docs
+server: context7
+category: knowledge
+description: >-
+  Queries documentation and code examples for a specific library using its Context7 ID.
+inputSchema:
+  type: object
+  properties:
+    libraryId:
+      type: string
+      description: The library ID obtained from resolve_library_id.
+    query:
+      type: string
+      description: The specific question or documentation you need.
+  required:
+    - libraryId
+    - query
+example: |-
+  await context7["query_docs"]({ libraryId: "/vercel/next.js", query: "how to use parallel routes" });

@@ -1,0 +1,19 @@
+name: write_memory
+server: serena
+category: knowledge
+description: >-
+  Writes a memory entry for the current project. Use this to log decisions, architectural patterns, or lessons learned.
+inputSchema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: The topic or category for the memory (e.g., "decisions/auth").
+    content:
+      type: string
+      description: The detailed content of the memory.
+  required:
+    - topic
+    - content
+example: |-
+  await serena["write_memory"]({ topic: "decisions/database", content: "Switched to PostgreSQL for JSONB support." });

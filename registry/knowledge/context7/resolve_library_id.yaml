@@ -1,0 +1,19 @@
+name: resolve_library_id
+server: context7
+category: knowledge
+description: >-
+  Resolves a package or library name to a Context7-compatible ID. Required before using query_docs.
+inputSchema:
+  type: object
+  properties:
+    libraryName:
+      type: string
+      description: The name of the library (e.g., "express").
+    query:
+      type: string
+      description: Contextual information about what you're trying to do.
+  required:
+    - libraryName
+    - query
+example: |-
+  await context7["resolve_library_id"]({ libraryName: "nextjs", query: "app router patterns" });

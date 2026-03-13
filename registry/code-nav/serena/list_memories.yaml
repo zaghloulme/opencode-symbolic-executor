@@ -1,0 +1,14 @@
+name: list_memories
+server: serena
+category: knowledge
+description: >-
+  Lists all available memories for the current project, optionally filtered by topic prefix.
+inputSchema:
+  type: object
+  properties:
+    topic_prefix:
+      type: string
+      default: ''
+      description: Optional prefix to filter memories (e.g., "decisions/").
+example: |-
+  await serena["list_memories"]({ topic_prefix: "decisions/" });

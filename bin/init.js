@@ -84,46 +84,20 @@ const SPEC_INDEX_TEMPLATE = `# SPEC Index
 ## Archived SPECs
 `
 
-const MEMORY_INDEX_TEMPLATE = `# Memory Index
+const SERENA_IGNORE_TEMPLATE = `memories/
+`
 
-> Memory helps when you're **stuck**, not to **prevent errors**.
-> 
-> Use \`search_memories\` tool with keywords when stuck.
-
-| ID      | Category | Date       | Summary                 | File             |
-| ------- | -------- | ---------- | ----------------------- | ---------------- |
-
-## Categories
-- auth: Authentication and authorization
-- security: Security issues and fixes
-- deployment: Deployment and infrastructure
-- performance: Performance optimizations
-- design: UI/UX and design decisions
-- architecture: Architecture and patterns
-
-## Search
-Use \`search_memories\` tool with keywords to find relevant memories.
+const SERENA_PROJECT_TEMPLATE = `project_name: ${path.basename(process.cwd())}
+description: Project initialized by Symbolic Executor
 `
 
 const CONFIG_TEMPLATE = `{
   "$schema": "https://opencode.ai/config.json",
-  "mcpServers": {
+  "mcp": {
     "serena": {
       "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
       "deferLoading": false,
       "description": "Symbolic code operations (always loaded)"
-    },
-    "context7": {
-      "command": ["npx", "-y", "@context7/mcp-server"],
-      "deferLoading": true,
-      "triggers": ["library", "package", "API", "docs", "dependency", "npm"],
-      "description": "Official library documentation and API references"
-    },
-    "next-devtools": {
-      "command": ["npx", "-y", "next-devtools-mcp"],
-      "deferLoading": true,
-      "triggers": ["Next.js", "next", "dev server", "build", "runtime"],
-      "description": "Next.js runtime diagnostics and browser automation"
     }
   }
 }
@@ -183,10 +157,7 @@ async function init() {
       'config.json',
       'constitution.md',
       'SPEC-INDEX.md',
-      'memory/index.md',
-      'specs',
-      'mistakes',
-      'decisions'
+      'specs'
     ]
     
     for (const item of expected) {
@@ -214,14 +185,18 @@ async function init() {
   
   await fs.promises.mkdir(opencodeDir, { recursive: true })
   await fs.promises.mkdir(path.join(opencodeDir, 'specs'), { recursive: true })
-  await fs.promises.mkdir(path.join(opencodeDir, 'mistakes'), { recursive: true })
-  await fs.promises.mkdir(path.join(opencodeDir, 'decisions'), { recursive: true })
-  await fs.promises.mkdir(path.join(opencodeDir, 'memory'), { recursive: true })
+  
+  const serenaDir = path.join(cwd, '.serena')
+  await fs.promises.mkdir(serenaDir, { recursive: true })
+  await fs.promises.mkdir(path.join(serenaDir, 'memories'), { recursive: true })
+
+  const registryDir = path.join(cwd, 'registry')
+  await fs.promises.mkdir(path.join(registryDir, 'code-nav/serena'), { recursive: true })
+  await fs.promises.mkdir(path.join(registryDir, 'knowledge/context7'), { recursive: true })
   
   console.log('  - .opencode/specs/')
-  console.log('  - .opencode/mistakes/')
-  console.log('  - .opencode/decisions/')
-  console.log('  - .opencode/memory/')
+  console.log('  - .serena/memories/')
+  console.log('  - registry/ (tool definitions)')
   
   // Create config
   const configPath = path.join(opencodeDir, 'config.json')
@@ -259,16 +234,24 @@ async function init() {
     console.log('  ✓ .opencode/SPEC-INDEX.md (already exists)')
   }
   
-  // Create memory index
-  const memoryIndexPath = path.join(opencodeDir, 'memory/index.md')
-  if (!fs.existsSync(memoryIndexPath)) {
+  // Create .serena/project.yml
+  const serenaProjectPath = path.join(cwd, '.serena/project.yml')
+  if (!fs.existsSync(serenaProjectPath)) {
     await fs.promises.writeFile(
-      memoryIndexPath,
-      MEMORY_INDEX_TEMPLATE
+      serenaProjectPath,
+      SERENA_PROJECT_TEMPLATE
     )
-    console.log('  - .opencode/memory/index.md')
-  } else {
-    console.log('  ✓ .opencode/memory/index.md (already exists)')
+    console.log('  - .serena/project.yml')
+  }
+
+  // Create .serena/.gitignore
+  const serenaIgnorePath = path.join(cwd, '.serena/.gitignore')
+  if (!fs.existsSync(serenaIgnorePath)) {
+    await fs.promises.writeFile(
+      serenaIgnorePath,
+      SERENA_IGNORE_TEMPLATE
+    )
+    console.log('  - .serena/.gitignore')
   }
   
   console.log('\n✅ Project initialization complete!\n')

@@ -1,0 +1,28 @@
+name: find_symbol
+server: serena
+category: code-nav
+description: >-
+  Retrieves information on all symbols/code entities (classes, methods, etc.) based on the given name path pattern.
+  The returned symbol information can be used for edits or further queries.
+inputSchema:
+  type: object
+  properties:
+    name_path_pattern:
+      type: string
+      description: The name path matching pattern (e.g. "MyClass/myMethod").
+    depth:
+      type: integer
+      default: 0
+      description: Depth up to which descendants shall be retrieved.
+    relative_path:
+      type: string
+      default: ''
+      description: Restrict search to this file or directory.
+    include_body:
+      type: boolean
+      default: false
+      description: If True, include the symbol's source code.
+  required:
+    - name_path_pattern
+example: |-
+  await serena["find_symbol"]({ name_path_pattern: "AuthService/login", include_body: true });

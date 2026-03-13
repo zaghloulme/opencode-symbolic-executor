@@ -1,0 +1,19 @@
+name: replace_symbol_body
+server: serena
+category: code-nav
+description: >-
+  Replaces the implementation (body) of a specific symbol with new code. Use this for refactoring or bug fixes within a function or method.
+inputSchema:
+  type: object
+  properties:
+    name_path:
+      type: string
+      description: The exact name path of the symbol to modify.
+    new_body:
+      type: string
+      description: The new source code for the symbol body.
+  required:
+    - name_path
+    - new_body
+example: |-
+  await serena["replace_symbol_body"]({ name_path: "User/getId", new_body: "return this.uuid;" });

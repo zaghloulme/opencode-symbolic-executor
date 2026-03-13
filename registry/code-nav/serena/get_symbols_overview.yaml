@@ -1,0 +1,14 @@
+name: get_symbols_overview
+server: serena
+category: code-nav
+description: >-
+  Provides a high-level overview of symbols in the project, helping to understand the codebase structure without reading every file.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      default: ''
+      description: Optional. Restrict overview to this file or directory.
+example: |-
+  await serena["get_symbols_overview"]({ relative_path: "src/services" });

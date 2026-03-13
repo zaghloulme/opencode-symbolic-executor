@@ -1,0 +1,15 @@
+name: read_memory
+server: serena
+category: knowledge
+description: >-
+  Retrieves a memory entry by topic. Helps recall previous decisions or patterns relevant to the current task.
+inputSchema:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: The topic of the memory to read.
+  required:
+    - topic
+example: |-
+  await serena["read_memory"]({ topic: "decisions/auth" });
