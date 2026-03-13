@@ -6,7 +6,7 @@
 import { spawn } from 'node:child_process'
 import type { MCPServerCatalog, ToolDefinition, PropertyDefinition } from '../catalog/types'
 
-const MCP_TIMEOUT = 10000 // 10 seconds per server
+// Timeout handled via buildServerCatalog options
 
 interface JSONRPCRequest {
   jsonrpc: '2.0'
@@ -38,7 +38,7 @@ export class MCPClient {
     command: string | string[]
     env?: Record<string, string>
   }): Promise<ToolDefinition[]> {
-    const timeout = MCP_TIMEOUT
+    const timeout = (serverConfig as any).timeout || 10000
     this.log(`Starting MCP server`)
 
     return new Promise((resolve, reject) => {
@@ -212,7 +212,8 @@ export async function buildServerCatalog(
     const tools = await client.listTools({
       command: serverConfig.command,
       env: serverConfig.env,
-    })
+      timeout: (serverConfig as any).timeout,
+    } as any)
 
     return {
       catalog: {

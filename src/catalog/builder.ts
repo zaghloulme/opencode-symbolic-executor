@@ -132,7 +132,8 @@ export async function buildToolCatalog(
         const result = await buildServerCatalog(serverId, {
           ...serverConfig,
           deferLoading: serverConfig.deferLoading ?? true,
-        })
+          timeout: timeoutPerServer,
+        } as any)
         
         catalog.servers[serverId] = result.catalog
         

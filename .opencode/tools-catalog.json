@@ -1,18 +1,7 @@
 {
   "version": 1,
-  "builtAt": "2026-03-11T19:55:58.444Z",
+  "builtAt": "2026-03-13T17:10:33.840Z",
   "servers": {
-    "serena": {
-      "command": [
-        "/home/main/.local/bin/uvx",
-        "--from",
-        "git+https://github.com/oraios/serena",
-        "serena",
-        "start-mcp-server"
-      ],
-      "deferLoading": true,
-      "tools": []
-    },
     "next-devtools": {
       "command": [
         "npx",
