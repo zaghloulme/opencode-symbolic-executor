@@ -92,8 +92,9 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
     },
 
     /**
-     * Before tool execution: Red-flag detection
+     * Before tool execution: Red-flag detection + Serena tool enforcement
      * Discards outputs with structural anomalies and retries
+     * Warns when built-in file tools are used instead of Serena tools
      */
     "tool.execute.before": async (input, output) => {
       const toolKey = `${input.tool}_${Date.now()}`;
@@ -123,6 +124,38 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
               `Red flag persisted after 3 retries: ${flag.message}`,
             );
           }
+        }
+      }
+
+      // Warn when built-in file tools are used on code files (Serena preferred)
+      const codeFileExtensions = [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".vue",
+        ".svelte",
+      ];
+      const filePath = output.args?.path || output.args?.filePath || "";
+      const isCodeFile = codeFileExtensions.some((ext) =>
+        filePath.toLowerCase().endsWith(ext),
+      );
+
+      if (isCodeFile) {
+        if (input.tool === "edit_file" || input.tool === "write_file") {
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "warn",
+              message: `Built-in ${input.tool} used on code file instead of Serena tool`,
+              extra: {
+                tool: input.tool,
+                file: filePath,
+                suggestion:
+                  "Use Serena's replace_content, insert_after_symbol, or insert_before_symbol for code-aware editing",
+              },
+            },
+          });
         }
       }
     },
@@ -202,6 +235,32 @@ ${specContext}
 - Plan Mode: Add requirements → Validate → Approve
 - Build Mode: Implement tasks → Verify → Log decisions → Mark complete
 `);
+
+          // Add auto-continue context for active SPECs with remaining tasks
+          const activeSpec = activeSpecs.find((s) => s.status === "active");
+          if (activeSpec && activeSpec.tasksCount > activeSpec.completedTasks) {
+            const remainingTasks =
+              activeSpec.tasksCount - activeSpec.completedTasks;
+            output.context.push(`
+# AUTO-CONTINUE: ${remainingTasks} Tasks Remaining
+
+**CRITICAL**: When implementing SPEC tasks, CONTINUE AUTOMATICALLY until all tasks are complete.
+
+**DO NOT**:
+- Ask "Would you like me to continue?"
+- Stop after each task waiting for confirmation
+- List remaining tasks and ask user to choose
+
+**DO**:
+- Complete TASK-N, verify, then immediately start TASK-(N+1)
+- Only stop when: (1) All tasks complete, (2) Error requires user input, (3) User explicitly says "stop"
+- Batch file operations efficiently (use Serena tools for symbol-aware edits)
+
+**Current Status**: ${activeSpec.completedTasks}/${activeSpec.tasksCount} tasks complete, ${remainingTasks} remaining
+
+**Next Action**: Continue with next incomplete task automatically.
+`);
+          }
         }
       } catch {
         // No specs directory or error reading - that's okay
@@ -1365,12 +1424,6 @@ ${alternativesMarkdown}
         output.system = [EXECUTOR_SYSTEM_PROMPT];
       }
     },
-
-    /**
-     * Auto-continue injection: Detect stall patterns in assistant messages
-     * Prevents agents from stopping mid-task with "let me know if" phrases
-     * Note: Implemented via session state tracking, not direct message modification
-     */
   };
 
   return hooks;

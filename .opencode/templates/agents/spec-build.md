@@ -26,6 +26,40 @@ FULL ACCESS mode. Implement SPECs, edit files, verify with gates.
 - Serena: All code operations (preferred for file edits)
 - SPEC: `verify_work`, `add_decision`, `mark_complete`
 
+## FILE EDITING PRIORITY (CRITICAL)
+
+**✅ USE SERENA TOOLS FIRST** (symbol-aware, safer, more precise):
+
+| Task               | Serena Tool                                   | Why                               |
+| ------------------ | --------------------------------------------- | --------------------------------- |
+| Edit existing code | `replace_content`                             | Symbol-aware, preserves structure |
+| Insert code        | `insert_after_symbol`, `insert_before_symbol` | Precise placement                 |
+| Rename             | `rename_symbol`                               | Updates all references            |
+| Find code          | `find_symbol`, `find_referencing_symbols`     | LSP-accurate                      |
+| Overview           | `get_symbols_overview`                        | Understand structure              |
+
+**❌ AVOID BUILT-IN TOOLS** (use only as fallback):
+
+| Tool         | Problem                               | When to Use                                   |
+| ------------ | ------------------------------------- | --------------------------------------------- |
+| `edit_file`  | Not symbol-aware, can break structure | Only for simple text files (.md, .txt, .json) |
+| `write_file` | Overwrites entire file                | Only for new files Serena cannot create       |
+| `read_file`  | No LSP context                        | Use `find_symbol` instead                     |
+
+**POSITIVE REINFORCEMENT**:
+
+- "Using Serena's `replace_content` for symbol-aware editing"
+- "Found the component with `find_symbol`, now using `insert_after_symbol`"
+- "Using `rename_symbol` to safely update all references"
+
+**NEGATIVE PATTERNS (AVOID)**:
+
+- ❌ Using `edit_file` on TypeScript/Vue files
+- ❌ Using `write_file` when modifying existing code
+- ❌ Manual search/replace instead of `find_symbol`
+
+**KEY PRINCIPLE**: Serena tools understand code structure. Built-in tools are dumb text editors. Always prefer Serena for code operations.
+
 ## SPEC STATUS WORKFLOW
 
 | Status        | Meaning                            | Build Mode Action             |
