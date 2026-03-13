@@ -1,6 +1,6 @@
 /**
  * Symbolic Executor Plugin for OpenCode
- * 
+ *
  * SPEC-driven development workflow with MAKER-inspired reliability:
  * - Atomic SPEC operations (stateless, fresh context per operation)
  * - Red-flag detection (auto-retry on structural anomalies)
@@ -9,9 +9,9 @@
  * - State management (SPECState persistence)
  */
 
-import { z } from "zod"
-import { tool } from "@opencode-ai/plugin"
-import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin"
+import { z } from "zod";
+import { tool } from "@opencode-ai/plugin";
+import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin";
 
 /**
  * Red-flag patterns for error detection
@@ -19,65 +19,70 @@ import type { Plugin, PluginInput, Hooks } from "@opencode-ai/plugin"
  * Auto-retries up to 3x before escalating to user
  */
 const RED_FLAGS = [
-  { 
-    pattern: /maybe|probably|I think|assume|guess/i, 
+  {
+    pattern: /maybe|probably|I think|assume|guess/i,
     reason: "assumption_detected",
-    message: "Vague language detected (maybe, probably, I think, assume, guess)"
+    message:
+      "Vague language detected (maybe, probably, I think, assume, guess)",
   },
-  { 
+  {
     pattern: /^.{1500,}$/,
     reason: "overly_long_response",
-    message: "Response too long (>1500 chars indicates confusion)"
+    message: "Response too long (>1500 chars indicates confusion)",
   },
-  { 
-    pattern: /^\s*$/, 
+  {
+    pattern: /^\s*$/,
     reason: "empty_response",
-    message: "Empty response"
+    message: "Empty response",
   },
-  { 
-    pattern: /missing.*section|incomplete|not provided/i, 
+  {
+    pattern: /missing.*section|incomplete|not provided/i,
     reason: "missing_required_section",
-    message: "Missing required section"
+    message: "Missing required section",
   },
-]
+];
 
 export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
   // Retry tracking per tool call
-  const retryCounts = new Map<string, number>()
-  
+  const retryCounts = new Map<string, number>();
+
   const hooks: Hooks = {
     /**
      * On session created: Initialize SPEC state and auto-build tool catalog
      */
     event: async ({ event }) => {
       if (event.type === "session.created") {
-        await maybeCreateOpencodeDirectory(directory)
-        
+        await maybeCreateOpencodeDirectory(directory);
+
         // Auto-install agents if missing
-        await installAgents()
-        
+        await installAgents();
+
         // Auto-build tool catalog if missing or stale
         try {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          const { buildToolCatalog, needsCatalogRebuild } = await import("./catalog/builder.js")
-          
-          const shouldRebuild = await needsCatalogRebuild(directory)
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+          const { buildToolCatalog, needsCatalogRebuild } =
+            await import("./catalog/builder.js");
+
+          const shouldRebuild = await needsCatalogRebuild(directory);
+
           if (shouldRebuild) {
             await buildToolCatalog(directory, {
               timeoutPerServer: 10000,
-              logDir: path.join(process.env.HOME || "", ".config/opencode/logs"),
-            })
-            
+              logDir: path.join(
+                process.env.HOME || "",
+                ".config/opencode/logs",
+              ),
+            });
+
             await client.app.log({
               body: {
                 service: "symbolic-executor",
                 level: "info",
                 message: "Tool catalog auto-built on session start",
-                extra: { directory }
-              }
-            })
+                extra: { directory },
+              },
+            });
           }
         } catch (error) {
           // Silent fail - catalog build is optional
@@ -91,8 +96,8 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
      * Discards outputs with structural anomalies and retries
      */
     "tool.execute.before": async (input, output) => {
-      const toolKey = `${input.tool}_${Date.now()}`
-      
+      const toolKey = `${input.tool}_${Date.now()}`;
+
       // Check for red flags in output
       for (const flag of RED_FLAGS) {
         if (flag.pattern.test(JSON.stringify(output.args || {}))) {
@@ -101,20 +106,22 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
               service: "symbolic-executor",
               level: "warn",
               message: `Red flag detected: ${flag.reason}`,
-              extra: { tool: input.tool, pattern: flag.pattern.toString() }
-            }
-          })
-          
+              extra: { tool: input.tool, pattern: flag.pattern.toString() },
+            },
+          });
+
           // Track retries
-          const currentRetries = retryCounts.get(toolKey) || 0
-          
+          const currentRetries = retryCounts.get(toolKey) || 0;
+
           if (currentRetries < 3) {
-            retryCounts.set(toolKey, currentRetries + 1)
+            retryCounts.set(toolKey, currentRetries + 1);
             // Will retry (OpenCode handles retry logic)
           } else {
             // Escalate to user after 3 failed retries
-            retryCounts.delete(toolKey)
-            throw new Error(`Red flag persisted after 3 retries: ${flag.message}`)
+            retryCounts.delete(toolKey);
+            throw new Error(
+              `Red flag persisted after 3 retries: ${flag.message}`,
+            );
           }
         }
       }
@@ -129,49 +136,63 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
      * Agent always has SPEC context even after long conversations
      */
     "experimental.session.compacting": async (input, output) => {
-      const fs = await import("node:fs/promises")
-      const path = await import("node:path")
-      
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+
       try {
         // Find active SPECs
-        const specsDir = path.join(directory, ".opencode/specs")
-        const files = await fs.readdir(specsDir)
-        const activeSpecs: any[] = []
-        
+        const specsDir = path.join(directory, ".opencode/specs");
+        const files = await fs.readdir(specsDir);
+        const activeSpecs: any[] = [];
+
         for (const file of files) {
-          if (!file.endsWith(".md")) continue
-          
-          const specPath = path.join(specsDir, file)
-          const content = await fs.readFile(specPath, "utf-8")
-          
+          if (!file.endsWith(".md")) continue;
+
+          const specPath = path.join(specsDir, file);
+          const content = await fs.readFile(specPath, "utf-8");
+
           // Extract SPEC metadata
-          const specId = file.replace(".md", "")
-          const title = content.match(/^# SPEC-\d+: (.+)$/m)?.[1] || "Untitled"
-          const status = content.match(/Status: (✓ Complete|in_progress|draft)/)?.[1] || "draft"
-          const requirementsCount = (content.match(/REQ-\d+/g) || []).length
-          const tasksCount = (content.match(/TASK-\d+/g) || []).length
-          const completedTasks = (content.match(/\[x\]/g) || []).length
-          
-          activeSpecs.push({
-            specId,
-            title,
-            status,
-            requirementsCount,
-            tasksCount,
-            completedTasks,
-          })
+          const specId = file.replace(".md", "");
+          const title = content.match(/^# SPEC-\d+: (.+)$/m)?.[1] || "Untitled";
+          const status =
+            content
+              .match(
+                /Status:\s*(draft|in_planning|active|complete|✓ Complete|in_progress)/i,
+              )?.[1]
+              ?.toLowerCase()
+              .replace("✓ complete", "complete")
+              .replace("in_progress", "in_planning") || "draft";
+          const requirementsCount = (content.match(/REQ-\d+/g) || []).length;
+          const tasksCount = (content.match(/TASK-\d+/g) || []).length;
+          const completedTasks = (content.match(/\[x\]/g) || []).length;
+
+          // Only include specs that are not complete
+          if (status !== "complete") {
+            activeSpecs.push({
+              specId,
+              title,
+              status,
+              requirementsCount,
+              tasksCount,
+              completedTasks,
+            });
+          }
         }
-        
+
         // Inject into context if there are active SPECs
         if (activeSpecs.length > 0) {
-          const specContext = activeSpecs.map(spec => `
+          const specContext = activeSpecs
+            .map(
+              (spec) => `
 ## Active SPEC: ${spec.specId} - ${spec.title}
 - **Status:** ${spec.status}
 - **Requirements:** ${spec.requirementsCount}
 - **Tasks:** ${spec.completedTasks}/${spec.tasksCount} completed
-- **Next Action:** ${spec.status === "draft" ? "Add requirements" : spec.status === "in_progress" ? "Implement tasks" : "Verify and complete"}
-`).join("\n")
-          
+- **Next Action:** ${spec.status === "draft" || spec.status === "in_planning" ? "Continue planning (add requirements, validate)" : spec.status === "active" ? "Implement tasks" : "Verify and complete"}
+`,
+            )
+            .join("\n");
+
           output.context.push(`
 # SPEC Context (Persists Across Compaction)
 
@@ -180,7 +201,7 @@ ${specContext}
 **Workflow:**
 - Plan Mode: Add requirements → Validate → Approve
 - Build Mode: Implement tasks → Verify → Log decisions → Mark complete
-`)
+`);
         }
       } catch {
         // No specs directory or error reading - that's okay
@@ -192,58 +213,82 @@ ${specContext}
      */
     tool: {
       // ==================== SPEC CREATION ====================
-      
+
       /**
        * Create new SPEC with Executive Summary
        * SPEC = Plan (no separate Plan section needed)
        * Shows ASCII box summary in chat after creation
+       * Initial status: "draft" (changes to "in_planning" when requirements complete, "active" when approved)
        */
       create_spec: tool({
-        description: "Create new SPEC (SPEC = Plan, no separate Plan section)",
+        description:
+          "Create new SPEC (SPEC = Plan, no separate Plan section). Initial status: draft. NOTE: Check for existing draft/in_planning specs before creating new ones!",
         args: {
-          feature: z.string().describe("Feature name (e.g., 'User Authentication with Better-Auth')"),
-          summary: z.string().describe("Executive summary (2-3 sentences: WHAT + WHY)"),
-          requirements: z.array(z.object({
-            actor: z.string(),
-            action: z.string(),
-            object: z.string(),
-            acceptance: z.string(),
-            edgeCases: z.array(z.string()),
-            verification: z.string(),
-            implementation: z.string().optional(),
-            dependencies: z.array(z.string()).optional(),
-            filesToCreate: z.array(z.string()).optional(),
-            filesToModify: z.array(z.string()).optional(),
-          })).describe("Requirements with implementation guidance"),
+          feature: z
+            .string()
+            .describe(
+              "Feature name (e.g., 'User Authentication with Better-Auth')",
+            ),
+          summary: z
+            .string()
+            .describe("Executive summary (2-3 sentences: WHAT + WHY)"),
+          requirements: z
+            .array(
+              z.object({
+                actor: z.string(),
+                action: z.string(),
+                object: z.string(),
+                acceptance: z.string(),
+                edgeCases: z.array(z.string()),
+                verification: z.string(),
+                implementation: z.string().optional(),
+                dependencies: z.array(z.string()).optional(),
+                filesToCreate: z.array(z.string()).optional(),
+                filesToModify: z.array(z.string()).optional(),
+              }),
+            )
+            .describe("Requirements with implementation guidance"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specId = await generateSPECId(context.directory)
-          const specPath = path.join(context.directory, ".opencode/specs", `SPEC-${specId}.md`)
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specId = await generateSPECId(context.directory);
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `SPEC-${specId}.md`,
+          );
+
           // Generate requirements markdown
-          const requirementsMarkdown = args.requirements.map((req, i) => `
+          const requirementsMarkdown = args.requirements
+            .map(
+              (req, i) => `
 ### REQ-${String(i + 1).padStart(3, "0")}: ${req.actor} ${req.action} ${req.object}
 - **Acceptance:** ${req.acceptance}
 - **Edge Cases:** ${req.edgeCases.join(", ")}
 - **Verification:** ${req.verification}${req.implementation ? `\n- **Implementation:** ${req.implementation}` : ""}${req.dependencies && req.dependencies.length > 0 ? `\n- **Dependencies:** ${req.dependencies.join(", ")}` : ""}${req.filesToCreate && req.filesToCreate.length > 0 ? `\n- **Files to Create:** ${req.filesToCreate.join(", ")}` : ""}${req.filesToModify && req.filesToModify.length > 0 ? `\n- **Files to Modify:** ${req.filesToModify.join(", ")}` : ""}
-`).join("\n")
-          
+`,
+            )
+            .join("\n");
+
           // Collect all files
-          const allFilesToCreate = [...new Set(args.requirements.flatMap(r => r.filesToCreate || []))]
-          const allFilesToModify = [...new Set(args.requirements.flatMap(r => r.filesToModify || []))]
-          
+          const allFilesToCreate = [
+            ...new Set(args.requirements.flatMap((r) => r.filesToCreate || [])),
+          ];
+          const allFilesToModify = [
+            ...new Set(args.requirements.flatMap((r) => r.filesToModify || [])),
+          ];
+
           // Generate file structure section
           const fileStructureMarkdown = `
 ### New Files to Create
-${allFilesToCreate.map(f => `- \`${f}\``).join("\n") || "- None"}
+${allFilesToCreate.map((f) => `- \`${f}\``).join("\n") || "- None"}
 
 ### Existing Files to Modify
-${allFilesToModify.map(f => `- \`${f}\``).join("\n") || "- None"}
-`
-          
+${allFilesToModify.map((f) => `- \`${f}\``).join("\n") || "- None"}
+`;
+
           // Generate SPEC content
           const specContent = `# SPEC-${specId}: ${args.feature}
 
@@ -296,13 +341,13 @@ ${args.requirements.map((_, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 
 ## Completed
 <!-- spec.mark_complete writes: HH:MM (24-hour format) -->
-`
-          
-          await fs.writeFile(specPath, specContent, "utf-8")
-          
+`;
+
+          await fs.writeFile(specPath, specContent, "utf-8");
+
           // Update SPEC index
-          await updateSPECIndex(context.directory, specId, args.feature)
-          
+          await updateSPECIndex(context.directory, specId, args.feature);
+
           // Generate ASCII box summary for chat
           const asciiBox = `
 ╔══════════════════════════════════════════════════════════╗
@@ -319,8 +364,8 @@ ${args.requirements.map((_, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 ╚══════════════════════════════════════════════════════════╝
 
 Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
-`
-          
+`;
+
           // Log to client (shows in chat)
           await client.app.log({
             body: {
@@ -335,89 +380,120 @@ Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
                 filesToCreate: allFilesToCreate.length,
                 filesToModify: allFilesToModify.length,
                 asciiBox,
-              }
-            }
-          })
-          
-          return JSON.stringify({ 
-            success: true, 
+              },
+            },
+          });
+
+          return JSON.stringify({
+            success: true,
             specId: `SPEC-${specId}`,
             feature: args.feature,
             requirementsCount: args.requirements.length,
             filesToCreate: allFilesToCreate.length,
             filesToModify: allFilesToModify.length,
-          })
+          });
         },
       }),
 
       // ==================== ATOMIC SPEC OPERATIONS ====================
-      
+
       /**
        * Add a single requirement to SPEC
        * Stateless: receives current state + requirement data only
        * Includes implementation guidance, dependencies, files
        */
       "spec.add_requirement": tool({
-        description: "Add a single requirement to SPEC (atomic operation with implementation guidance)",
+        description:
+          "Add a single requirement to SPEC (atomic operation with implementation guidance)",
         args: {
           specId: z.string().describe("SPEC ID (e.g., 'SPEC-001')"),
-          actor: z.string().describe("Who performs the action (e.g., 'User', 'System')"),
-          action: z.string().describe("What action is performed (e.g., 'uploads', 'creates')"),
-          object: z.string().describe("What is acted upon (e.g., 'profile images', 'account')"),
-          acceptance: z.string().describe("Measurable acceptance criteria (include numbers, booleans, specific values)"),
-          edgeCases: z.array(z.string()).describe("Edge cases and boundaries (error states, min/max values)"),
-          verification: z.string().describe("How to verify (test commands, manual steps)"),
-          implementation: z.string().optional().describe("HOW to implement (brief guidance)"),
-          dependencies: z.array(z.string()).optional().describe("Packages/libraries needed"),
-          filesToCreate: z.array(z.string()).optional().describe("New files to create"),
-          filesToModify: z.array(z.string()).optional().describe("Existing files to modify"),
+          actor: z
+            .string()
+            .describe("Who performs the action (e.g., 'User', 'System')"),
+          action: z
+            .string()
+            .describe("What action is performed (e.g., 'uploads', 'creates')"),
+          object: z
+            .string()
+            .describe("What is acted upon (e.g., 'profile images', 'account')"),
+          acceptance: z
+            .string()
+            .describe(
+              "Measurable acceptance criteria (include numbers, booleans, specific values)",
+            ),
+          edgeCases: z
+            .array(z.string())
+            .describe(
+              "Edge cases and boundaries (error states, min/max values)",
+            ),
+          verification: z
+            .string()
+            .describe("How to verify (test commands, manual steps)"),
+          implementation: z
+            .string()
+            .optional()
+            .describe("HOW to implement (brief guidance)"),
+          dependencies: z
+            .array(z.string())
+            .optional()
+            .describe("Packages/libraries needed"),
+          filesToCreate: z
+            .array(z.string())
+            .optional()
+            .describe("New files to create"),
+          filesToModify: z
+            .array(z.string())
+            .optional()
+            .describe("Existing files to modify"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `${args.specId}.md`,
+          );
+
           // Read current SPEC
-          let specContent = await fs.readFile(specPath, "utf-8")
-          
+          let specContent = await fs.readFile(specPath, "utf-8");
+
           // Generate requirement markdown
-          const reqNum = (specContent.match(/REQ-(\d+)/g) || []).length + 1
-          const reqId = `REQ-${String(reqNum).padStart(3, "0")}`
+          const reqNum = (specContent.match(/REQ-(\d+)/g) || []).length + 1;
+          const reqId = `REQ-${String(reqNum).padStart(3, "0")}`;
           const reqMarkdown = `
 ### ${reqId}: ${args.actor} ${args.action} ${args.object}
 - **Acceptance:** ${args.acceptance}
 - **Edge Cases:** ${args.edgeCases.join(", ")}
 - **Verification:** ${args.verification}${args.implementation ? `\n- **Implementation:** ${args.implementation}` : ""}${args.dependencies && args.dependencies.length > 0 ? `\n- **Dependencies:** ${args.dependencies.join(", ")}` : ""}${args.filesToCreate && args.filesToCreate.length > 0 ? `\n- **Files to Create:** ${args.filesToCreate.join(", ")}` : ""}${args.filesToModify && args.filesToModify.length > 0 ? `\n- **Files to Modify:** ${args.filesToModify.join(", ")}` : ""}
 
-`
-          
+`;
+
           // Insert into Requirements section (find last requirement or section header)
           if (specContent.includes("## Requirements")) {
             specContent = specContent.replace(
               /## Requirements\n/,
-              `## Requirements\n\n${reqMarkdown}`
-            )
+              `## Requirements\n\n${reqMarkdown}`,
+            );
           } else {
             // Add Requirements section if missing
             specContent = specContent.replace(
               /## Executive Summary\n/,
-              `## Executive Summary\n\n## Requirements\n\n${reqMarkdown}`
-            )
+              `## Executive Summary\n\n## Requirements\n\n${reqMarkdown}`,
+            );
           }
-          
-          await fs.writeFile(specPath, specContent, "utf-8")
-          
-          // Update state
-          await updateSPECState(context.directory, args.specId, {
-            requirementsCount: reqNum
-          })
-          
-          return JSON.stringify({ 
-            success: true, 
+
+          await fs.writeFile(specPath, specContent, "utf-8");
+
+          // Update SPEC index with new requirements count
+          await updateSPECIndex(context.directory, args.specId, null, reqNum);
+
+          return JSON.stringify({
+            success: true,
             requirementId: reqId,
-            specId: args.specId
-          })
+            specId: args.specId,
+          });
         },
       }),
 
@@ -430,36 +506,42 @@ Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
         args: {
           specId: z.string().describe("SPEC ID"),
           description: z.string().describe("Task description"),
-          acceptanceCriteria: z.string().describe("How to verify task completion"),
+          acceptanceCriteria: z
+            .string()
+            .describe("How to verify task completion"),
           verification: z.string().describe("Verification command or steps"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
-          let specContent = await fs.readFile(specPath, "utf-8")
-          
-          const taskNum = (specContent.match(/TASK-(\d+)/g) || []).length + 1
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `${args.specId}.md`,
+          );
+          let specContent = await fs.readFile(specPath, "utf-8");
+
+          const taskNum = (specContent.match(/TASK-(\d+)/g) || []).length + 1;
           const taskMarkdown = `
 - **TASK-${String(taskNum).padStart(3, "0")}**: ${args.description}
   - Acceptance: ${args.acceptanceCriteria}
   - Verification: ${args.verification}
   - [ ] 
-`
-          
+`;
+
           specContent = specContent.replace(
             /## Tasks\n/,
-            `## Tasks\n${taskMarkdown}`
-          )
-          
-          await fs.writeFile(specPath, specContent, "utf-8")
-          
-          return JSON.stringify({ 
-            success: true, 
+            `## Tasks\n${taskMarkdown}`,
+          );
+
+          await fs.writeFile(specPath, specContent, "utf-8");
+
+          return JSON.stringify({
+            success: true,
             taskId: `TASK-${String(taskNum).padStart(3, "0")}`,
-            specId: args.specId
-          })
+            specId: args.specId,
+          });
         },
       }),
 
@@ -468,30 +550,41 @@ Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
        * Stateless: receives current state + decision data only
        */
       "spec.add_decision": tool({
-        description: "Log a single decision with full traceability (atomic operation)",
+        description:
+          "Log a single decision with full traceability (atomic operation)",
         args: {
           specId: z.string().describe("SPEC ID"),
-          context: z.string().describe("Why this decision was needed (include SPEC reference)"),
+          context: z
+            .string()
+            .describe("Why this decision was needed (include SPEC reference)"),
           chosen: z.string().describe("What was chosen (include version)"),
           sources: z.array(z.string()).describe("URLs, docs, SPEC references"),
-          alternatives: z.array(z.object({
-            option: z.string(),
-            rejectedReason: z.string(),
-          })).describe("Alternatives considered with rejection reasons"),
+          alternatives: z
+            .array(
+              z.object({
+                option: z.string(),
+                rejectedReason: z.string(),
+              }),
+            )
+            .describe("Alternatives considered with rejection reasons"),
           tradeoffs: z.string().describe("What was given up by this choice"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
-          let specContent = await fs.readFile(specPath, "utf-8")
-          
-          const decNum = (specContent.match(/DEC-(\d+)/g) || []).length + 1
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `${args.specId}.md`,
+          );
+          let specContent = await fs.readFile(specPath, "utf-8");
+
+          const decNum = (specContent.match(/DEC-(\d+)/g) || []).length + 1;
           const alternativesMarkdown = args.alternatives
-            .map(a => `    - ${a.option}: ${a.rejectedReason}`)
-            .join("\n")
-          
+            .map((a) => `    - ${a.option}: ${a.rejectedReason}`)
+            .join("\n");
+
           const decisionMarkdown = `
 - **DEC-${String(decNum).padStart(3, "0")}**: ${args.chosen}
   - Context: ${args.context}
@@ -499,20 +592,20 @@ Full SPEC: \`.opencode/specs/SPEC-${specId}.md\`
   - Alternatives:
 ${alternativesMarkdown}
   - Tradeoffs: ${args.tradeoffs}
-`
-          
+`;
+
           specContent = specContent.replace(
             /## Decisions\n/,
-            `## Decisions\n${decisionMarkdown}`
-          )
-          
-          await fs.writeFile(specPath, specContent, "utf-8")
-          
-          return JSON.stringify({ 
-            success: true, 
+            `## Decisions\n${decisionMarkdown}`,
+          );
+
+          await fs.writeFile(specPath, specContent, "utf-8");
+
+          return JSON.stringify({
+            success: true,
             decisionId: `DEC-${String(decNum).padStart(3, "0")}`,
-            specId: args.specId
-          })
+            specId: args.specId,
+          });
         },
       }),
 
@@ -521,37 +614,65 @@ ${alternativesMarkdown}
        * Stateless: receives current state + completion time only
        */
       "spec.mark_complete": tool({
-        description: "Mark SPEC as complete with timestamp (HH:MM 24-hour format)",
+        description:
+          "Mark SPEC as complete with timestamp (HH:MM 24-hour format)",
         args: {
           specId: z.string().describe("SPEC ID"),
-          completedAt: z.string().describe("Completion time in HH:MM format (24-hour, e.g., '14:30')"),
+          completedAt: z
+            .string()
+            .describe(
+              "Completion time in HH:MM format (24-hour, e.g., '14:30')",
+            ),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
-          let specContent = await fs.readFile(specPath, "utf-8")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `${args.specId}.md`,
+          );
+          let specContent = await fs.readFile(specPath, "utf-8");
+
           // Update Completed section
           specContent = specContent.replace(
             /## Completed\n.*?(?=\n##|\Z)/s,
-            `## Completed\n\n- Completed at: ${args.completedAt} (24-hour format)\n- Status: ✅ Complete\n`
-          )
-          
-          await fs.writeFile(specPath, specContent, "utf-8")
-          
-          // Update state
-          await updateSPECState(context.directory, args.specId, {
-            status: "completed",
-            completedAt: args.completedAt
-          })
-          
-          return JSON.stringify({ 
-            success: true, 
+            `## Completed\n\n- Completed at: ${args.completedAt} (24-hour format)\n- Status: ✅ Complete\n`,
+          );
+
+          await fs.writeFile(specPath, specContent, "utf-8");
+
+          // Update SPEC index with completed status
+          await updateSPECIndex(
+            context.directory,
+            args.specId,
+            null,
+            undefined,
+          );
+          const indexPath = path.join(
+            context.directory,
+            ".opencode/SPEC-INDEX.md",
+          );
+          try {
+            let indexContent = await fs.readFile(indexPath, "utf-8");
+            // Update status to complete
+            indexContent = indexContent.replace(
+              new RegExp(
+                `(\\| SPEC-${args.specId.replace("SPEC-", "")} \\|[^|]+\\|)[^|]+(\\|[^|]+\\|[^|]+\\|)`,
+              ),
+              `$1 complete$2`,
+            );
+            await fs.writeFile(indexPath, indexContent, "utf-8");
+          } catch {
+            // Index not found, that's okay
+          }
+
+          return JSON.stringify({
+            success: true,
             specId: args.specId,
-            completedAt: args.completedAt
-          })
+            completedAt: args.completedAt,
+          });
         },
       }),
 
@@ -565,15 +686,19 @@ ${alternativesMarkdown}
           specId: z.string().describe("SPEC ID to validate"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const specPath = path.join(context.directory, ".opencode/specs", `${args.specId}.md`)
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specPath = path.join(
+            context.directory,
+            ".opencode/specs",
+            `${args.specId}.md`,
+          );
+
           try {
-            const specContent = await fs.readFile(specPath, "utf-8")
-            const errors: string[] = []
-            
+            const specContent = await fs.readFile(specPath, "utf-8");
+            const errors: string[] = [];
+
             // Check required sections
             const requiredSections = [
               "## Value",
@@ -581,86 +706,117 @@ ${alternativesMarkdown}
               "## Tasks",
               "## Decisions",
               "## Verification",
-            ]
-            
+            ];
+
             for (const section of requiredSections) {
               if (!specContent.includes(section)) {
-                errors.push(`Missing required section: ${section}`)
+                errors.push(`Missing required section: ${section}`);
               }
             }
-            
+
             // Check for at least one requirement
             if (!specContent.match(/REQ-\d+/)) {
-              errors.push("SPEC must have at least one requirement")
+              errors.push("SPEC must have at least one requirement");
             }
-            
+
             // Check requirements have acceptance criteria
-            const reqsWithoutAcceptance = (specContent.match(/REQ-\d+.*?(?=- \*\*REQ|\n##)/gs) || [])
-              .filter(req => !req.includes("Acceptance:"))
-            
+            const reqsWithoutAcceptance = (
+              specContent.match(/REQ-\d+.*?(?=- \*\*REQ|\n##)/gs) || []
+            ).filter((req) => !req.includes("Acceptance:"));
+
             if (reqsWithoutAcceptance.length > 0) {
-              errors.push(`${reqsWithoutAcceptance.length} requirement(s) missing acceptance criteria`)
+              errors.push(
+                `${reqsWithoutAcceptance.length} requirement(s) missing acceptance criteria`,
+              );
             }
-            
+
             return JSON.stringify({
               passed: errors.length === 0,
               errors,
               specId: args.specId,
-            })
+            });
           } catch (error) {
             return JSON.stringify({
               passed: false,
               errors: [`SPEC file not found: ${args.specId}`],
               specId: args.specId,
-            })
+            });
           }
         },
       }),
 
       // ==================== SEARCH TOOLS ====================
-      
+
       /**
        * Search per-project memory index
        * Helps when stuck (not for error prevention)
        */
       search_memories: tool({
-        description: "Search per-project memory index when stuck (reference library, not guardrail)",
+        description:
+          "Search per-project memory index when stuck (reference library, not guardrail)",
         args: {
           keywords: z.array(z.string()).describe("Search keywords"),
-          category: z.enum(["auth", "security", "deployment", "performance", "design", "architecture"]).optional().describe("Category filter"),
-          specReference: z.string().optional().describe("SPEC reference filter"),
+          category: z
+            .enum([
+              "auth",
+              "security",
+              "deployment",
+              "performance",
+              "design",
+              "architecture",
+            ])
+            .optional()
+            .describe("Category filter"),
+          specReference: z
+            .string()
+            .optional()
+            .describe("SPEC reference filter"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const memoryIndexPath = path.join(context.directory, ".opencode/memory/index.md")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const memoryIndexPath = path.join(
+            context.directory,
+            ".opencode/memory/index.md",
+          );
+
           try {
-            const indexContent = await fs.readFile(memoryIndexPath, "utf-8")
-            const results: any[] = []
-            
+            const indexContent = await fs.readFile(memoryIndexPath, "utf-8");
+            const results: any[] = [];
+
             // Simple keyword search in index
-            const lines = indexContent.split("\n")
+            const lines = indexContent.split("\n");
             for (const line of lines) {
-              const hasKeywords = args.keywords.some(k => line.toLowerCase().includes(k.toLowerCase()))
-              const hasCategory = !args.category || line.toLowerCase().includes(args.category.toLowerCase())
-              const hasSPEC = !args.specReference || line.includes(args.specReference)
-              
-              if (hasKeywords && hasCategory && hasSPEC && line.includes("MEM-")) {
+              const hasKeywords = args.keywords.some((k) =>
+                line.toLowerCase().includes(k.toLowerCase()),
+              );
+              const hasCategory =
+                !args.category ||
+                line.toLowerCase().includes(args.category.toLowerCase());
+              const hasSPEC =
+                !args.specReference || line.includes(args.specReference);
+
+              if (
+                hasKeywords &&
+                hasCategory &&
+                hasSPEC &&
+                line.includes("MEM-")
+              ) {
                 results.push({
                   line,
-                  relevance: "high"
-                })
+                  relevance: "high",
+                });
               }
             }
-            
-            return JSON.stringify(results.slice(0, 10))
+
+            return JSON.stringify(results.slice(0, 10));
           } catch {
             return JSON.stringify({
-              error: "Memory index not found. Run 'npx opencode-symbolic-executor init' to create.",
-              results: []
-            })
+              error:
+                "Memory index not found. Run 'npx opencode-symbolic-executor init' to create.",
+              results: [],
+            });
           }
         },
       }),
@@ -671,122 +827,292 @@ ${alternativesMarkdown}
           keywords: z.array(z.string()).describe("Search keywords"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const decisionsDir = path.join(context.directory, ".opencode/decisions")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const decisionsDir = path.join(
+            context.directory,
+            ".opencode/decisions",
+          );
+
           try {
-            const files = await fs.readdir(decisionsDir)
-            const results: any[] = []
-            
+            const files = await fs.readdir(decisionsDir);
+            const results: any[] = [];
+
             for (const file of files) {
-              if (!file.endsWith(".md")) continue
-              
-              const filePath = path.join(decisionsDir, file)
-              const content = await fs.readFile(filePath, "utf-8")
-              
-              const hasKeywords = args.keywords.some(k => content.toLowerCase().includes(k.toLowerCase()))
-              
+              if (!file.endsWith(".md")) continue;
+
+              const filePath = path.join(decisionsDir, file);
+              const content = await fs.readFile(filePath, "utf-8");
+
+              const hasKeywords = args.keywords.some((k) =>
+                content.toLowerCase().includes(k.toLowerCase()),
+              );
+
               if (hasKeywords) {
                 results.push({
                   id: file.replace(".md", ""),
                   title: content.match(/^# (.+)$/m)?.[1] || "Untitled",
-                  excerpt: content.slice(0, 200) + "..."
-                })
+                  excerpt: content.slice(0, 200) + "...",
+                });
               }
             }
-            
-            return JSON.stringify(results.slice(0, 10))
+
+            return JSON.stringify(results.slice(0, 10));
           } catch {
-            return JSON.stringify([])
+            return JSON.stringify([]);
           }
         },
       }),
 
       search_mistakes: tool({
-        description: "Search mistake logs by keyword or category to get unstuck",
+        description:
+          "Search mistake logs by keyword or category to get unstuck",
         args: {
           keywords: z.array(z.string()).describe("Search keywords"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
-          const mistakesDir = path.join(context.directory, ".opencode/mistakes")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const mistakesDir = path.join(
+            context.directory,
+            ".opencode/mistakes",
+          );
+
           try {
-            const files = await fs.readdir(mistakesDir)
-            const results: any[] = []
-            
+            const files = await fs.readdir(mistakesDir);
+            const results: any[] = [];
+
             for (const file of files) {
-              if (!file.endsWith(".md")) continue
-              
-              const filePath = path.join(mistakesDir, file)
-              const content = await fs.readFile(filePath, "utf-8")
-              
-              const hasKeywords = args.keywords.some(k => content.toLowerCase().includes(k.toLowerCase()))
-              
+              if (!file.endsWith(".md")) continue;
+
+              const filePath = path.join(mistakesDir, file);
+              const content = await fs.readFile(filePath, "utf-8");
+
+              const hasKeywords = args.keywords.some((k) =>
+                content.toLowerCase().includes(k.toLowerCase()),
+              );
+
               if (hasKeywords) {
                 results.push({
                   id: file.replace(".md", ""),
                   title: content.match(/^# (.+)$/m)?.[1] || "Untitled",
                   lesson: content.match(/\*\*Lesson\*\*:\s*(.+)/i)?.[1] || "",
-                  excerpt: content.slice(0, 200) + "..."
-                })
+                  excerpt: content.slice(0, 200) + "...",
+                });
               }
             }
-            
-            return JSON.stringify(results.slice(0, 10))
+
+            return JSON.stringify(results.slice(0, 10));
           } catch {
-            return JSON.stringify([])
+            return JSON.stringify([]);
+          }
+        },
+      }),
+
+      // ==================== SPEC WORKFLOW TOOLS ====================
+
+      /**
+       * Find active/draft SPECs in the project
+       * Helps agents discover existing planning sessions before creating duplicates
+       */
+      find_active_specs: tool({
+        description:
+          "Find SPECs with status 'draft', 'in_planning', or 'active'. Use BEFORE create_spec to avoid duplicates!",
+        args: {
+          statuses: z
+            .array(z.enum(["draft", "in_planning", "active"]))
+            .optional()
+            .default(["draft", "in_planning", "active"])
+            .describe("SPEC statuses to filter by"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
+          const specsDir = path.join(context.directory, ".opencode/specs");
+          const indexPath = path.join(
+            context.directory,
+            ".opencode/SPEC-INDEX.md",
+          );
+
+          try {
+            const results: any[] = [];
+
+            // Try reading SPEC index first
+            try {
+              const indexContent = await fs.readFile(indexPath, "utf-8");
+              const lines = indexContent.split("\n");
+
+              for (const line of lines) {
+                if (!line.includes("SPEC-")) continue;
+
+                // Parse table row: | SPEC-001 | Feature Name | status | ...
+                const parts = line.split("|").map((p) => p.trim());
+                if (parts.length < 4) continue;
+
+                const specId = parts[1]?.replace("SPEC-", "");
+                const feature = parts[2];
+                const status = parts[3];
+
+                if (!specId || !args.statuses.includes(status as any)) continue;
+
+                // Read full spec for more details
+                const specPath = path.join(specsDir, `SPEC-${specId}.md`);
+                try {
+                  const specContent = await fs.readFile(specPath, "utf-8");
+                  const requirementsCount = (
+                    specContent.match(/REQ-\d+/g) || []
+                  ).length;
+                  const tasksCount = (specContent.match(/TASK-\d+/g) || [])
+                    .length;
+                  const completedTasks = (specContent.match(/\[x\]/g) || [])
+                    .length;
+
+                  results.push({
+                    specId: `SPEC-${specId}`,
+                    feature,
+                    status,
+                    requirementsCount,
+                    tasksCount,
+                    completedTasks,
+                    path: specPath,
+                  });
+                } catch {
+                  // Spec file not found, use index data only
+                  results.push({
+                    specId: `SPEC-${specId}`,
+                    feature,
+                    status,
+                    path: specPath,
+                  });
+                }
+              }
+            } catch {
+              // Index doesn't exist, scan specs directory
+              const files = await fs.readdir(specsDir);
+
+              for (const file of files) {
+                if (!file.endsWith(".md")) continue;
+
+                const specPath = path.join(specsDir, file);
+                const content = await fs.readFile(specPath, "utf-8");
+
+                // Extract status from content
+                const statusMatch = content.match(
+                  /Status:\s*(draft|in_planning|active|complete)/i,
+                );
+                const status = statusMatch?.[1]?.toLowerCase() || "draft";
+
+                if (!args.statuses.includes(status as any)) continue;
+
+                const specId = file.replace(".md", "");
+                const feature =
+                  content.match(/^# SPEC-\d+:\s*(.+)$/m)?.[1] || "Untitled";
+                const requirementsCount = (content.match(/REQ-\d+/g) || [])
+                  .length;
+                const tasksCount = (content.match(/TASK-\d+/g) || []).length;
+                const completedTasks = (content.match(/\[x\]/g) || []).length;
+
+                results.push({
+                  specId,
+                  feature,
+                  status,
+                  requirementsCount,
+                  tasksCount,
+                  completedTasks,
+                  path: specPath,
+                });
+              }
+            }
+
+            return JSON.stringify({
+              specs: results,
+              count: results.length,
+              message:
+                results.length > 0
+                  ? `Found ${results.length} SPEC(s) in ${args.statuses.join("/")} status`
+                  : `No SPECs found in ${args.statuses.join("/")} status. Safe to create new SPEC.`,
+            });
+          } catch (error) {
+            return JSON.stringify({
+              specs: [],
+              count: 0,
+              error: `Failed to find specs: ${error instanceof Error ? error.message : "Unknown error"}`,
+              hint: "Specs directory may not exist yet. Use create_spec to start planning.",
+            });
           }
         },
       }),
 
       tool_search: tool({
-        description: "Search for available tools by keyword or natural language (supports regex and BM25)",
+        description:
+          "Search for available tools by keyword or natural language (supports regex and BM25)",
         args: {
-          query: z.string().describe("Natural language description or regex pattern (wrap in /.../ for regex)"),
+          query: z
+            .string()
+            .describe(
+              "Natural language description or regex pattern (wrap in /.../ for regex)",
+            ),
           limit: z.number().default(5).describe("Max results to return"),
-          useRegex: z.boolean().default(false).describe("Force regex search mode"),
+          useRegex: z
+            .boolean()
+            .default(false)
+            .describe("Force regex search mode"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+
           try {
             // Load catalog
-            const catalogPath = path.join(context.directory, ".opencode/tools-catalog.json")
-            const catalogContent = await fs.readFile(catalogPath, "utf-8")
-            const catalog = JSON.parse(catalogContent)
-            
+            const catalogPath = path.join(
+              context.directory,
+              ".opencode/tools-catalog.json",
+            );
+            const catalogContent = await fs.readFile(catalogPath, "utf-8");
+            const catalog = JSON.parse(catalogContent);
+
             // Load config for BM25 params
-            const configPath = path.join(context.directory, ".opencode/config.json")
-            let bm25Params = { k1: 0.9, b: 0.4 }
+            const configPath = path.join(
+              context.directory,
+              ".opencode/config.json",
+            );
+            let bm25Params = { k1: 0.9, b: 0.4 };
             try {
-              const configContent = await fs.readFile(configPath, "utf-8")
-              const config = JSON.parse(configContent)
+              const configContent = await fs.readFile(configPath, "utf-8");
+              const config = JSON.parse(configContent);
               if (config.toolSearch?.bm25Params) {
-                bm25Params = config.toolSearch.bm25Params
+                bm25Params = config.toolSearch.bm25Params;
               }
             } catch {
               // Use defaults
             }
-            
+
             // Import search functions (dynamic import for lazy loading)
-            const catalogModule = await import("./catalog/search.js")
-            const { searchToolsRegex, searchToolsBM25 } = catalogModule
-            
+            const catalogModule = await import("./catalog/search.js");
+            const { searchToolsRegex, searchToolsBM25 } = catalogModule;
+
             // Perform search
-            let results
-            if (args.useRegex || (args.query.startsWith('/') && args.query.endsWith('/'))) {
-              const pattern = args.query.startsWith('/') ? args.query.slice(1, -1) : args.query
-              results = searchToolsRegex(catalog, pattern, args.limit)
+            let results: any[];
+            if (
+              args.useRegex ||
+              (args.query.startsWith("/") && args.query.endsWith("/"))
+            ) {
+              const pattern = args.query.startsWith("/")
+                ? args.query.slice(1, -1)
+                : args.query;
+              results = searchToolsRegex(catalog, pattern, args.limit);
             } else {
-              results = searchToolsBM25(catalog, args.query, args.limit, bm25Params)
+              results = searchToolsBM25(
+                catalog,
+                args.query,
+                args.limit,
+                bm25Params,
+              );
             }
-            
+
             // Log search usage
             await client.app.log({
               body: {
@@ -797,12 +1123,12 @@ ${alternativesMarkdown}
                   query: args.query,
                   mode: args.useRegex ? "regex" : "bm25",
                   resultsCount: results.length,
-                }
-              }
-            })
-            
+                },
+              },
+            });
+
             return JSON.stringify({
-              tools: results.map(r => ({
+              tools: results.map((r) => ({
                 name: r.toolName,
                 server: r.serverId,
                 description: r.description,
@@ -811,141 +1137,170 @@ ${alternativesMarkdown}
               })),
               totalFound: results.length,
               mode: args.useRegex ? "regex" : "bm25",
-            })
+            });
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-            
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+
             return JSON.stringify({
               tools: [],
               totalFound: 0,
               error: `Tool search failed: ${errorMessage}`,
               hint: "Ensure catalog is built: npx opencode-symbolic-executor build-catalog",
-            })
+            });
           }
         },
       }),
 
       // ==================== VERIFICATION TOOLS ====================
-      
+
       review_plan: tool({
-        description: "Review and score technical plans objectively (≥85 to pass)",
+        description:
+          "Review and score technical plans objectively (≥85 to pass)",
         args: {
           plan: z.string().describe("Plan content to review"),
           specId: z.string().describe("SPEC reference"),
         },
         async execute(args) {
-          const breakdown = await scorePlan(args.plan)
-          const score = calculateOverallScore(breakdown)
-          const passed = score >= 85
-          
+          const breakdown = await scorePlan(args.plan);
+          const score = calculateOverallScore(breakdown);
+          const passed = score >= 85;
+
           return JSON.stringify({
             score,
             passed,
             breakdown,
             feedback: generateFeedback(breakdown, passed),
-          })
+          });
         },
       }),
 
       verify_work: tool({
-        description: "Run verification gates (LSP, security, visual, SPEC alignment)",
+        description:
+          "Run verification gates (LSP, security, visual, SPEC alignment)",
         args: {
           specId: z.string().describe("SPEC ID to verify against"),
           taskId: z.string().describe("Task ID being verified"),
         },
         async execute() {
           // Placeholder - will integrate with actual verification gates
-          return JSON.stringify({ 
-            passed: true, 
+          return JSON.stringify({
+            passed: true,
             score: 100,
             gates: {
               lsp: { passed: true, score: 100, errors: [] },
               security: { passed: true, score: 100, errors: [] },
               visual: { passed: true, score: 100, errors: [] },
               spec: { passed: true, score: 100, errors: [] },
-            }
-          })
+            },
+          });
         },
       }),
 
       hashline_edit: tool({
-        description: "Edit files using LINE#ID format for precise, safe modifications. Hash-validated line references prevent stale edits (6.7% → 68.3% success rate).",
+        description:
+          "Edit files using LINE#ID format for precise, safe modifications. Hash-validated line references prevent stale edits (6.7% → 68.3% success rate).",
         args: {
-          filePath: z.string().describe("Path to file to edit (relative to project root)"),
-          edits: z.array(
-            z.object({
-              op: z.enum(['replace', 'append', 'prepend']).describe("Edit operation type"),
-              pos: z.string().optional().describe('LINE#ID anchor (e.g., "11#VK")'),
-              end: z.string().optional().describe("LINE#ID end anchor for range operations"),
-              lines: z.union([z.string(), z.array(z.string())]).optional().describe("New content (plain text, no LINE#ID prefixes)"),
-            })
-          ).describe("Array of edit operations"),
-          delete: z.boolean().optional().describe("If true, delete the file (edits must be empty)"),
-          rename: z.string().optional().describe("If provided, rename file to this path after editing"),
+          filePath: z
+            .string()
+            .describe("Path to file to edit (relative to project root)"),
+          edits: z
+            .array(
+              z.object({
+                op: z
+                  .enum(["replace", "append", "prepend"])
+                  .describe("Edit operation type"),
+                pos: z
+                  .string()
+                  .optional()
+                  .describe('LINE#ID anchor (e.g., "11#VK")'),
+                end: z
+                  .string()
+                  .optional()
+                  .describe("LINE#ID end anchor for range operations"),
+                lines: z
+                  .union([z.string(), z.array(z.string())])
+                  .optional()
+                  .describe("New content (plain text, no LINE#ID prefixes)"),
+              }),
+            )
+            .describe("Array of edit operations"),
+          delete: z
+            .boolean()
+            .optional()
+            .describe("If true, delete the file (edits must be empty)"),
+          rename: z
+            .string()
+            .optional()
+            .describe("If provided, rename file to this path after editing"),
         },
         async execute(args, context) {
-          const fs = await import("node:fs/promises")
-          const path = await import("node:path")
-          const { executeHashlineEdits } = await import("./tools/hashline/executor.js")
-          
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+          const { executeHashlineEdits } =
+            await import("./tools/hashline/executor.js");
+
           try {
-            const fullPath = path.join(context.directory, args.filePath)
-            
-            let content: string
+            const fullPath = path.join(context.directory, args.filePath);
+
+            let content: string;
             try {
-              content = await fs.readFile(fullPath, "utf-8")
+              content = await fs.readFile(fullPath, "utf-8");
             } catch (error) {
               if ((error as NodeJS.ErrnoException).code === "ENOENT") {
                 const hasUnanchoredInsert = args.edits.some(
-                  e => (e.op === "append" || e.op === "prepend") && !e.pos
-                )
+                  (e) => (e.op === "append" || e.op === "prepend") && !e.pos,
+                );
                 if (hasUnanchoredInsert) {
-                  content = ""
+                  content = "";
                 } else {
                   return JSON.stringify({
                     success: false,
                     error: `File not found: ${args.filePath}. Use unanchored append/prepend to create new files.`,
-                  })
+                  });
                 }
               } else {
-                throw error
+                throw error;
               }
             }
-            
+
             const result = await executeHashlineEdits(content, {
               filePath: args.filePath,
               edits: args.edits,
               delete: args.delete,
               rename: args.rename,
-            })
-            
+            });
+
             if (!result.success) {
-              return JSON.stringify(result)
+              return JSON.stringify(result);
             }
-            
+
             if (args.delete) {
-              await fs.unlink(fullPath)
+              await fs.unlink(fullPath);
             } else {
-              const contentToWrite = result.updatedContent!.split("\n")
-                .map(line => line.replace(/^\d+#[ZPMQVRWSNKTXJBYH]{2}\|/, ""))
-                .join("\n")
-              
-              const writePath = args.rename ? path.join(context.directory, args.rename) : fullPath
-              await fs.mkdir(path.dirname(writePath), { recursive: true })
-              await fs.writeFile(writePath, contentToWrite, "utf-8")
+              const contentToWrite = result
+                .updatedContent!.split("\n")
+                .map((line) => line.replace(/^\d+#[ZPMQVRWSNKTXJBYH]{2}\|/, ""))
+                .join("\n");
+
+              const writePath = args.rename
+                ? path.join(context.directory, args.rename)
+                : fullPath;
+              await fs.mkdir(path.dirname(writePath), { recursive: true });
+              await fs.writeFile(writePath, contentToWrite, "utf-8");
             }
-            
+
             return JSON.stringify({
               success: true,
               diff: result.diff,
               filePath: result.filePath,
               message: "File edited successfully",
-            })
+            });
           } catch (error) {
             return JSON.stringify({
               success: false,
               error: (error as Error).message,
-            })
+            });
           }
         },
       }),
@@ -958,24 +1313,30 @@ ${alternativesMarkdown}
      */
     "tool.execute.after": async (input, output) => {
       // Skip pruning for always-loaded tools (Serena, SPEC tools)
-      const alwaysLoadTools = ['serena_find_symbol', 'serena_find_referencing_symbols', 
-        'serena_get_symbols_overview', 'serena_replace_symbol_body',
-        'create_spec', 'review_plan', 'verify_work']
-      
+      const alwaysLoadTools = [
+        "serena_find_symbol",
+        "serena_find_referencing_symbols",
+        "serena_get_symbols_overview",
+        "serena_replace_symbol_body",
+        "create_spec",
+        "review_plan",
+        "verify_work",
+      ];
+
       if (alwaysLoadTools.includes(input.tool)) {
-        return // Keep these tools loaded
+        return; // Keep these tools loaded
       }
-      
+
       // Log pruning for debugging
       await client.app.log({
         body: {
           service: "symbolic-executor",
           level: "info",
           message: `Tool definition pruned after execution: ${input.tool}`,
-          extra: { tool: input.tool }
-        }
-      })
-      
+          extra: { tool: input.tool },
+        },
+      });
+
       // Note: Actual context pruning happens automatically in OpenCode
       // This hook marks the tool as "complete" so it can be pruned during compaction
     },
@@ -985,19 +1346,23 @@ ${alternativesMarkdown}
      * Disables OpenCode's default mode prompts and replaces with SPEC-driven workflow
      */
     "experimental.chat.system.transform": async (_input, output) => {
-      const fs = await import("node:fs/promises")
-      const path = await import("node:path")
-      
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+
       // Detect mode from system prompt context (simplified - full detection in prompts)
       // Mode keywords in conversation will trigger appropriate responses
-      const modePromptPath = path.join(directory, ".opencode/templates/prompts", "build-mode.md")
-      
+      const modePromptPath = path.join(
+        directory,
+        ".opencode/templates/prompts",
+        "build-mode.md",
+      );
+
       try {
-        const modePrompt = await fs.readFile(modePromptPath, "utf-8")
-        output.system = [EXECUTOR_SYSTEM_PROMPT, modePrompt]
+        const modePrompt = await fs.readFile(modePromptPath, "utf-8");
+        output.system = [EXECUTOR_SYSTEM_PROMPT, modePrompt];
       } catch {
         // Fallback to base prompt if mode file not found
-        output.system = [EXECUTOR_SYSTEM_PROMPT]
+        output.system = [EXECUTOR_SYSTEM_PROMPT];
       }
     },
 
@@ -1006,10 +1371,10 @@ ${alternativesMarkdown}
      * Prevents agents from stopping mid-task with "let me know if" phrases
      * Note: Implemented via session state tracking, not direct message modification
      */
-  }
+  };
 
-  return hooks
-}
+  return hooks;
+};
 
 // ==================== HELPER FUNCTIONS ====================
 
@@ -1119,58 +1484,69 @@ YOU ARE THE PRIMARY DEVELOPER.
 - Security: 0 critical CVEs
 - Visual: ≥90% match
 - SPEC: All acceptance criteria met
-`
+`;
 
 async function maybeCreateOpencodeDirectory(directory: string): Promise<void> {
-  const fs = await import("node:fs/promises")
-  const path = await import("node:path")
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
 
-  const opencodeDir = path.join(directory, ".opencode")
+  const opencodeDir = path.join(directory, ".opencode");
 
   // Check if already exists
   try {
-    await fs.access(opencodeDir)
-    return
+    await fs.access(opencodeDir);
+    return;
   } catch {
     // Doesn't exist, continue
   }
 
   // Check if in project root
-  const hasPackage = await fs.access(path.join(directory, "package.json"))
+  const hasPackage = await fs
+    .access(path.join(directory, "package.json"))
     .then(() => true)
-    .catch(() => false)
-  const hasGit = await fs.access(path.join(directory, ".git"))
+    .catch(() => false);
+  const hasGit = await fs
+    .access(path.join(directory, ".git"))
     .then(() => true)
-    .catch(() => false)
+    .catch(() => false);
 
-  if (!hasPackage && !hasGit) return
+  if (!hasPackage && !hasGit) return;
 
   // Don't auto-create, let user run init command
 }
 
 async function generateSPECId(directory: string): Promise<string> {
-  const fs = await import("node:fs/promises")
-  const path = await import("node:path")
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
 
-  const indexPath = path.join(directory, ".opencode/SPEC-INDEX.md")
+  const indexPath = path.join(directory, ".opencode/SPEC-INDEX.md");
 
   try {
-    const indexContent = await fs.readFile(indexPath, "utf-8")
-    const matches = indexContent.match(/SPEC-(\d+)/g)
+    const indexContent = await fs.readFile(indexPath, "utf-8");
+    const matches = indexContent.match(/SPEC-(\d+)/g);
 
     if (matches && matches.length > 0) {
-      const lastId = parseInt(matches[matches.length - 1].replace("SPEC-", ""))
-      return String(lastId + 1).padStart(3, "0")
+      const lastId = parseInt(matches[matches.length - 1].replace("SPEC-", ""));
+      return String(lastId + 1).padStart(3, "0");
     }
   } catch {
     // Index doesn't exist yet
   }
 
-  return "001"
+  return "001";
 }
 
-function generateSPECContent(specId: string, feature: string, summary: string): string {
+function generateSPECContent(
+  specId: string,
+  feature: string,
+  summary: string,
+): string {
   return `# SPEC-${specId}: ${feature}
+
+**Status:** draft
+**Created:** ${new Date().toISOString().split("T")[0]}
+
+---
 
 ## Executive Summary
 ${summary}
@@ -1205,76 +1581,100 @@ ${summary}
 
 ## Completed
 <!-- spec.mark_complete writes: HH:MM (24-hour format) -->
-`
+`;
 }
 
-async function scorePlan(plan: string): Promise<{ clarity: number; completeness: number; testability: number; security: number }> {
+async function scorePlan(plan: string): Promise<{
+  clarity: number;
+  completeness: number;
+  testability: number;
+  security: number;
+}> {
   return {
     clarity: scoreClarity(plan),
     completeness: scoreCompleteness(plan),
     testability: scoreTestability(plan),
     security: scoreSecurity(plan),
-  }
+  };
 }
 
-function calculateOverallScore(breakdown: { clarity: number; completeness: number; testability: number; security: number }): number {
+function calculateOverallScore(breakdown: {
+  clarity: number;
+  completeness: number;
+  testability: number;
+  security: number;
+}): number {
   return (
-    breakdown.clarity * 0.30 +
+    breakdown.clarity * 0.3 +
     breakdown.completeness * 0.25 +
     breakdown.testability * 0.25 +
-    breakdown.security * 0.20
-  )
+    breakdown.security * 0.2
+  );
 }
 
 function scoreClarity(plan: string): number {
-  const vaguePatterns = [/maybe/, /probably/, /try to/, /should/, /I think/]
-  const vagueCount = vaguePatterns.filter((p) => p.test(plan)).length
-  return Math.max(0, 100 - vagueCount * 10)
+  const vaguePatterns = [/maybe/, /probably/, /try to/, /should/, /I think/];
+  const vagueCount = vaguePatterns.filter((p) => p.test(plan)).length;
+  return Math.max(0, 100 - vagueCount * 10);
 }
 
 function scoreCompleteness(plan: string): number {
-  const required = ["requirements", "design", "testing", "verification"]
-  const present = required.filter((r) => plan.toLowerCase().includes(r)).length
-  return (present / required.length) * 100
+  const required = ["requirements", "design", "testing", "verification"];
+  const present = required.filter((r) => plan.toLowerCase().includes(r)).length;
+  return (present / required.length) * 100;
 }
 
 function scoreTestability(plan: string): number {
-  const measurablePatterns = [/must$/, /should$/, /will$/]
-  const lines = plan.split("\n").filter((l) => l.trim().startsWith("-"))
-  const measurable = lines.filter((l) => measurablePatterns.some((p) => p.test(l))).length
-  return lines.length > 0 ? (measurable / lines.length) * 100 : 0
+  const measurablePatterns = [/must$/, /should$/, /will$/];
+  const lines = plan.split("\n").filter((l) => l.trim().startsWith("-"));
+  const measurable = lines.filter((l) =>
+    measurablePatterns.some((p) => p.test(l)),
+  ).length;
+  return lines.length > 0 ? (measurable / lines.length) * 100 : 0;
 }
 
 function scoreSecurity(plan: string): number {
-  const securityMentions = [/auth/, /validation/, /sanitize/, /encrypt/, /rate limit/]
-  const hasSecurity = securityMentions.some((p) => p.test(plan.toLowerCase()))
-  return hasSecurity ? 100 : 50
+  const securityMentions = [
+    /auth/,
+    /validation/,
+    /sanitize/,
+    /encrypt/,
+    /rate limit/,
+  ];
+  const hasSecurity = securityMentions.some((p) => p.test(plan.toLowerCase()));
+  return hasSecurity ? 100 : 50;
 }
 
 function generateFeedback(breakdown: any, passed: boolean): string[] {
-  const feedback: string[] = []
+  const feedback: string[] = [];
 
   if (breakdown.clarity < 85) {
-    feedback.push("Clarity: Remove vague language (maybe, probably, should)")
+    feedback.push("Clarity: Remove vague language (maybe, probably, should)");
   }
 
   if (breakdown.completeness < 85) {
-    feedback.push("Completeness: Add missing sections (requirements, design, testing, verification)")
+    feedback.push(
+      "Completeness: Add missing sections (requirements, design, testing, verification)",
+    );
   }
 
   if (breakdown.testability < 85) {
-    feedback.push("Testability: Make acceptance criteria measurable (use must/will, include numbers)")
+    feedback.push(
+      "Testability: Make acceptance criteria measurable (use must/will, include numbers)",
+    );
   }
 
   if (breakdown.security < 85) {
-    feedback.push("Security: Add security considerations (auth, validation, rate limiting)")
+    feedback.push(
+      "Security: Add security considerations (auth, validation, rate limiting)",
+    );
   }
 
   if (passed) {
-    feedback.push("✓ Plan meets threshold (≥85)")
+    feedback.push("✓ Plan meets threshold (≥85)");
   }
 
-  return feedback
+  return feedback;
 }
 
 /**
@@ -1283,29 +1683,44 @@ function generateFeedback(breakdown: any, passed: boolean): string[] {
 async function updateSPECIndex(
   directory: string,
   specId: string,
-  feature: string
+  feature: string | null,
+  requirementsCount?: number,
 ): Promise<void> {
-  const fs = await import("node:fs/promises")
-  const path = await import("node:path")
-  
-  const indexPath = path.join(directory, ".opencode/SPEC-INDEX.md")
-  const today = new Date().toISOString().split("T")[0]
-  
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+
+  const indexPath = path.join(directory, ".opencode/SPEC-INDEX.md");
+  const today = new Date().toISOString().split("T")[0];
+
   try {
-    let indexContent = await fs.readFile(indexPath, "utf-8")
-    
-    // Add entry to table
-    const newEntry = `| SPEC-${specId} | ${feature} | draft | 1 | ${today} |`
-    
-    if (indexContent.includes("| SPEC-")) {
-      // Add after header row
-      indexContent = indexContent.replace(
-        /(\| ID \| Feature \| Status \| Iteration \| Last Updated \|)/,
-        `$1\n${newEntry}`
-      )
-    } else {
-      // Create table if doesn't exist
-      indexContent = `# SPEC Index
+    let indexContent = await fs.readFile(indexPath, "utf-8");
+
+    // Update existing entry or add new one
+    const tableRowRegex = new RegExp(
+      `\\| SPEC-${specId} \\|[^|]+\\|[^|]+\\|[^|]+\\|[^|]+\\|`,
+    );
+    const existingRow = indexContent.match(tableRowRegex);
+
+    if (existingRow && requirementsCount !== undefined) {
+      // Update requirements count in existing row (iteration column)
+      const newRow = existingRow[0].replace(
+        /(\| SPEC-\d+ \|[^|]+\|[^|]+\|)\d+(\|[^|]+\|)/,
+        `$1${requirementsCount}$2`,
+      );
+      indexContent = indexContent.replace(tableRowRegex, newRow);
+    } else if (feature && !existingRow) {
+      // Add new entry
+      const newEntry = `| SPEC-${specId} | ${feature} | draft | 1 | ${today} |`;
+
+      if (indexContent.includes("| SPEC-")) {
+        // Add after header row
+        indexContent = indexContent.replace(
+          /(\| ID \| Feature \| Status \| Iteration \| Last Updated \|)/,
+          `$1\n${newEntry}`,
+        );
+      } else {
+        // Create table if doesn't exist
+        indexContent = `# SPEC Index
 
 | ID | Feature | Status | Iteration | Last Updated |
 |----|---------|--------|-----------|--------------|
@@ -1314,53 +1729,26 @@ ${newEntry}
 ## Active SPECs
 
 ## Archived SPECs
-`
+`;
+      }
     }
-    
-    await fs.writeFile(indexPath, indexContent, "utf-8")
+
+    await fs.writeFile(indexPath, indexContent, "utf-8");
   } catch {
     // Index doesn't exist, create it
     const indexContent = `# SPEC Index
 
 | ID | Feature | Status | Iteration | Last Updated |
 |----|---------|--------|-----------|--------------|
-| SPEC-${specId} | ${feature} | draft | 1 | ${today} |
+| SPEC-${specId} | ${feature || "Unknown"} | draft | 1 | ${today} |
 
 ## Active SPECs
 
 ## Archived SPECs
-`
-    await fs.mkdir(path.dirname(indexPath), { recursive: true })
-    await fs.writeFile(indexPath, indexContent, "utf-8")
+`;
+    await fs.mkdir(path.dirname(indexPath), { recursive: true });
+    await fs.writeFile(indexPath, indexContent, "utf-8");
   }
-}
-
-async function updateSPECState(
-  directory: string,
-  specId: string,
-  updates: {
-    status?: string
-    requirementsCount?: number
-    completedAt?: string
-  }
-): Promise<void> {
-  const fs = await import("node:fs/promises")
-  const path = await import("node:path")
-  
-  // Update persistent state file
-  const statePath = path.join(directory, ".opencode/specs", `${specId}.state.json`)
-  
-  let state: any = {}
-  try {
-    const stateContent = await fs.readFile(statePath, "utf-8")
-    state = JSON.parse(stateContent)
-  } catch {
-    // State file doesn't exist yet
-  }
-  
-  Object.assign(state, updates)
-  
-  await fs.writeFile(statePath, JSON.stringify(state, null, 2), "utf-8")
 }
 
 /**
@@ -1369,36 +1757,36 @@ async function updateSPECState(
  * Runs silently on OpenCode boot - no logging, no notifications
  */
 async function installAgents(): Promise<void> {
-  const fs = await import("node:fs/promises")
-  const path = await import("node:path")
-  const os = await import("node:os")
-  
-  const agentDir = path.join(os.homedir(), ".config/opencode/agents")
-  const templateDir = path.join(__dirname, "../.opencode/templates/agents")
-  
-  const agents = ["spec-plan", "spec-build", "chat"]
-  
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const os = await import("node:os");
+
+  const agentDir = path.join(os.homedir(), ".config/opencode/agents");
+  const templateDir = path.join(__dirname, "../.opencode/templates/agents");
+
+  const agents = ["spec-plan", "spec-build", "chat"];
+
   // Ensure agent directory exists
-  await fs.mkdir(agentDir, { recursive: true })
-  
+  await fs.mkdir(agentDir, { recursive: true });
+
   for (const agent of agents) {
-    const agentPath = path.join(agentDir, `${agent}.md`)
-    const templatePath = path.join(templateDir, `${agent}.md`)
-    
+    const agentPath = path.join(agentDir, `${agent}.md`);
+    const templatePath = path.join(templateDir, `${agent}.md`);
+
     try {
       // Check if agent already exists
-      await fs.access(agentPath)
+      await fs.access(agentPath);
       // Agent exists, skip silently
-      continue
+      continue;
     } catch {
       // File doesn't exist, proceed with installation
     }
-    
+
     try {
       // Read template
-      const template = await fs.readFile(templatePath, "utf-8")
+      const template = await fs.readFile(templatePath, "utf-8");
       // Write agent file
-      await fs.writeFile(agentPath, template, "utf-8")
+      await fs.writeFile(agentPath, template, "utf-8");
     } catch {
       // Silent fail - agents are optional, user can create manually
     }
