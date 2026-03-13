@@ -124,6 +124,10 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
      * Warns when built-in file tools are used instead of Serena tools
      */
     "tool.execute.before": async (input, output) => {
+      // Import fs and path for config checking
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+
       const toolKey = `${input.tool}_${Date.now()}`;
 
       // Check for red flags in output
@@ -179,14 +183,31 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           "read_file",
           "create_file",
         ];
-        if (blockedTools.includes(input.tool)) {
-          const serenaAlternatives = {
+        // read_with_hashes is exempt - it's the bridge to Serena workflow
+        if (blockedTools.includes(input.tool) && input.tool !== "read_with_hashes") {
+          const serenaAlternatives: Record<string, string> = {
             edit_file:
-              "replace_content (for edits) or insert_after_symbol/insert_before_symbol (for inserts)",
-            write_file: "replace_content (Serena preserves structure)",
-            read_file: "find_symbol (LSP-accurate) or get_symbols_overview",
-            create_file: "replace_content with new file path",
+              "replace_content or use hashline_edit with read_with_hashes",
+            write_file: "replace_content or use hashline_edit with read_with_hashes",
+            read_file: "read_with_hashes (gets LINE#ID format) or find_symbol",
+            create_file:
+              "replace_content with new path or use hashline_edit with read_with_hashes",
           };
+
+          // Check if Serena is configured
+          let hasSerena = false;
+          try {
+            const configPath = path.join(directory, ".opencode/config.json");
+            const configContent = await fs.readFile(configPath, "utf-8");
+            const config = JSON.parse(configContent);
+            hasSerena = config.mcpServers?.serena !== undefined;
+          } catch {
+            // Config not found - assume Serena not available
+          }
+
+          const suggestion = hasSerena
+            ? serenaAlternatives[input.tool] || "Use Serena tools or hashline_edit workflow"
+            : "Use 'read_with_hashes' followed by 'hashline_edit'. Serena is not configured.";
 
           await client.app.log({
             body: {
@@ -197,17 +218,17 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
                 tool: input.tool,
                 file: filePath,
                 reason:
-                  "Built-in file tools are BLOCKED for code files. Use Serena MCP tools.",
-                suggestion: `Use Serena's ${serenaAlternatives[input.tool as keyof typeof serenaAlternatives]}`,
+                  "Built-in file tools are BLOCKED for code files. Use hashline_edit workflow.",
+                suggestion,
+                hasSerena,
               },
             },
           });
 
           throw new Error(
             `BLOCKED: Cannot use ${input.tool} on code file '${filePath}'. ` +
-              `Serena MCP tools are REQUIRED for code operations. ` +
-              `Use: ${serenaAlternatives[input.tool as keyof typeof serenaAlternatives]}. ` +
-              `Serena MCP is available - check .opencode/config.json for serena server config.`,
+              `Use: ${suggestion}. ` +
+              `See .opencode/config.json for Serena configuration.`,
           );
         }
       }
@@ -1365,9 +1386,61 @@ ${alternativesMarkdown}
         },
       }),
 
+      // ==================== HASHLINE EDITING ====================
+
+      /**
+       * Read file with LINE#ID format for hashline_edit compatibility
+       * Returns lines formatted as 'LINE#HASH|content'
+       */
+      read_with_hashes: tool({
+        description:
+          "Read file content with LINE#ID format for hashline_edit compatibility. Returns lines formatted as 'LINE#HASH|content'. Use this BEFORE hashline_edit to get hash anchors.",
+        args: {
+          filePath: z
+            .string()
+            .describe("Path to file (relative to project root)"),
+          includeHashPrefix: z
+            .boolean()
+            .default(true)
+            .describe("Include LINE#HASH prefixes"),
+        },
+        async execute(args, context) {
+          const fs = await import("node:fs/promises");
+          const path = await import("node:path");
+          const { formatHashLines } =
+            await import("./tools/hashline/hash-computation.js");
+
+          const fullPath = path.join(context.directory, args.filePath);
+
+          try {
+            const content = await fs.readFile(fullPath, "utf-8");
+
+            if (args.includeHashPrefix) {
+              return JSON.stringify({
+                success: true,
+                filePath: args.filePath,
+                content: formatHashLines(content),
+              });
+            }
+            return JSON.stringify({
+              success: true,
+              filePath: args.filePath,
+              content,
+            });
+          } catch (error) {
+            return JSON.stringify({
+              success: false,
+              error: (error as Error).message,
+            });
+          }
+        },
+      }),
+
       hashline_edit: tool({
         description:
-          "Edit files using LINE#ID format for precise, safe modifications. Hash-validated line references prevent stale edits (6.7% → 68.3% success rate).",
+          "Edit files using LINE#ID format for precise, safe modifications. " +
+          "Use 'read_with_hashes' first to get LINE#HASH anchors. " +
+          "Hash-validated line references prevent stale edits.",
         args: {
           filePath: z
             .string()
@@ -1480,7 +1553,7 @@ ${alternativesMarkdown}
      * Achieves 85-90% context reduction by not retaining tool schemas in conversation
      */
     "tool.execute.after": async (input, output) => {
-      // Skip pruning for always-loaded tools (Serena, SPEC tools)
+      // Skip pruning for always-loaded tools (Serena, SPEC tools, hashline_edit)
       const alwaysLoadTools = [
         "serena_find_symbol",
         "serena_find_referencing_symbols",
@@ -1489,6 +1562,8 @@ ${alternativesMarkdown}
         "create_spec",
         "review_plan",
         "verify_work",
+        "hashline_edit",
+        "read_with_hashes",
       ];
 
       if (alwaysLoadTools.includes(input.tool)) {

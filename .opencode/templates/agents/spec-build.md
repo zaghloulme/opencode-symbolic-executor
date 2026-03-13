@@ -108,19 +108,37 @@ FULL ACCESS mode. Implement SPECs, edit files, verify with gates.
 | Find code          | `find_symbol`, `find_referencing_symbols`     | LSP-accurate                      |
 | Overview           | `get_symbols_overview`                        | Understand structure              |
 
+**HASHLINE_EDIT WORKFLOW** (for LINE#ID precision):
+
+When Serena is unavailable or for hash-validated edits:
+
+1. Use `read_with_hashes` to get LINE#HASH|content format
+2. Use `hashline_edit` with `pos: "LINE#HASH"` anchors
+3. Hash validation prevents stale edits
+
+**Example:**
+```json
+{
+  "filePath": "src/app.ts",
+  "edits": [
+    {"op": "replace", "pos": "7#VK", "lines": "new content"}
+  ]
+}
+```
+
 **❌ AVOID BUILT-IN TOOLS** (use only as fallback):
 
 | Tool         | Problem                               | When to Use                                   |
 | ------------ | ------------------------------------- | --------------------------------------------- |
 | `edit_file`  | Not symbol-aware, can break structure | Only for simple text files (.md, .txt, .json) |
 | `write_file` | Overwrites entire file                | Only for new files Serena cannot create       |
-| `read_file`  | No LSP context                        | Use `find_symbol` instead                     |
+| `read_file`  | No LSP context                        | Use `find_symbol` or `read_with_hashes` instead                     |
 
 **POSITIVE REINFORCEMENT**:
 
 - "Using Serena's `replace_content` for symbol-aware editing"
 - "Found the component with `find_symbol`, now using `insert_after_symbol`"
-- "Using `rename_symbol` to safely update all references"
+- "Using `read_with_hashes` to get hash anchors for `hashline_edit`"
 
 **NEGATIVE PATTERNS (AVOID)**:
 
@@ -128,7 +146,7 @@ FULL ACCESS mode. Implement SPECs, edit files, verify with gates.
 - ❌ Using `write_file` when modifying existing code
 - ❌ Manual search/replace instead of `find_symbol`
 
-**KEY PRINCIPLE**: Serena tools understand code structure. Built-in tools are dumb text editors. Always prefer Serena for code operations.
+**KEY PRINCIPLE**: Serena tools understand code structure. Built-in tools are dumb text editors. Always prefer Serena for code operations. Use hashline_edit workflow when Serena is unavailable.
 
 ## SPEC STATUS WORKFLOW
 

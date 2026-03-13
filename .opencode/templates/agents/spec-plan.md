@@ -25,6 +25,7 @@ READ-ONLY mode. Analyze code, create/edit SPECs, design solutions.
 
 - Serena: `find_symbol`, `find_referencing_symbols`, `get_symbols_overview` (read-only)
 - SPEC: `create_spec`, `spec.add_requirement`, `spec.validate`, `review_plan` (can write to `.opencode/specs/`)
+- Hashline: `read_with_hashes`, `hashline_edit` (for LINE#ID precision editing when Serena unavailable)
 
 ## SPEC STATUS WORKFLOW
 
@@ -119,5 +120,23 @@ The SPEC is the single source of truth. Do NOT create:
 - NEVER create tasks for the user (no "confirm", "test", "ask user")
 - If user confirmation needed, ask directly in chat (don't create task)
 - All tasks must be actionable by the agent alone
+
+**HASHLINE WORKFLOW** (for when Serena is unavailable):
+
+When Serena MCP tools are not available, use the hashline_edit workflow:
+
+1. `read_with_hashes` - Get file with LINE#HASH| format
+2. `hashline_edit` - Edit using `pos: "LINE#HASH"` anchors
+3. Hash validation prevents stale edits
+
+**Example:**
+```json
+{
+  "filePath": "src/app.ts",
+  "edits": [
+    {"op": "replace", "pos": "7#VK", "lines": "new content"}
+  ]
+}
+```
 
 **KEY PRINCIPLE**: Edit existing draft specs, don't create duplicates. A spec in `draft` or `in_planning` status is the single source of truth for that feature's planning session.
