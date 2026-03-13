@@ -10,6 +10,8 @@ import { createDehydratedTools } from "./dehydrate/tools.js";
 import { installAgents } from "./helpers/agents.js";
 import { calculateOverallScore, generateFeedback, scorePlan } from "./helpers/scoring.js";
 import { generateSPECId, updateSPECIndex } from "./helpers/spec-index.js";
+import { scanActiveSpecs } from "./helpers/spec-scanner.js";
+import { buildContinuationPrompt, detectStallPhrases } from "./helpers/stall-detection.js";
 import { EXECUTOR_SYSTEM_PROMPT } from "./helpers/system-prompt.js";
 
 const execFileAsync = promisify(execFile);
@@ -47,11 +49,41 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
   const registry = await ToolRegistry.create(path.join(directory, "registry"));
   const dehydratedTools = createDehydratedTools(registry);
 
+  // Stall detection state -- tracks whether agent went idle with pending work
+  let stoppedWithPendingWork = false;
+
   const hooks: Hooks = {
     event: async ({ event }) => {
       if (event.type === "session.created") {
         await maybeCreateOpencodeDirectory(directory);
         await installAgents();
+        stoppedWithPendingWork = false;
+      }
+
+      // When session goes idle, check for incomplete SPEC tasks
+      if (event.type === "session.idle") {
+        const activeSpecs = await scanActiveSpecs(directory);
+        const hasPendingWork = activeSpecs.some((s) => s.completedTasks < s.tasksCount);
+        if (hasPendingWork) {
+          stoppedWithPendingWork = true;
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "warn",
+              message: "Session went idle with unfinished SPEC tasks",
+              extra: {
+                specs: activeSpecs
+                  .filter((s) => s.completedTasks < s.tasksCount)
+                  .map((s) => ({
+                    specId: s.specId,
+                    remaining: s.tasksCount - s.completedTasks,
+                  })),
+              },
+            },
+          });
+        } else {
+          stoppedWithPendingWork = false;
+        }
       }
     },
 
@@ -112,59 +144,62 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       }
     },
 
-    "experimental.session.compacting": async (_input, output) => {
-      try {
-        const specsDir = path.join(directory, ".opencode/specs");
-        const files = await fs.readdir(specsDir);
-        const activeSpecs: {
-          specId: string;
-          title: string;
-          status: string;
-          requirementsCount: number;
-          tasksCount: number;
-          completedTasks: number;
-        }[] = [];
-
-        for (const file of files) {
-          if (!file.endsWith(".md")) continue;
-          const content = await fs.readFile(path.join(specsDir, file), "utf-8");
-          const specId = file.replace(".md", "");
-          const title = content.match(/^# SPEC-\d+: (.+)$/m)?.[1] || "Untitled";
-          const status =
-            content
-              .match(/Status:\s*(draft|in_planning|active|complete|in_progress)/i)?.[1]
-              ?.toLowerCase()
-              ?.replace("in_progress", "in_planning") || "draft";
-          if (status === "complete") continue;
-
-          activeSpecs.push({
-            specId,
-            title,
-            status,
-            requirementsCount: (content.match(/REQ-\d+/g) || []).length,
-            tasksCount: (content.match(/TASK-\d+/g) || []).length,
-            completedTasks: (content.match(/\[x\]/g) || []).length,
+    "tool.execute.after": async (input, output) => {
+      // Detect stall phrases in tool results that suggest the agent is stopping
+      const resultText = typeof output.output === "string" ? output.output : JSON.stringify(output.output || "");
+      const stallPhrases = detectStallPhrases(resultText);
+      if (stallPhrases.length > 0) {
+        const activeSpecs = await scanActiveSpecs(directory);
+        const hasPending = activeSpecs.some((s) => s.completedTasks < s.tasksCount);
+        if (hasPending) {
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "warn",
+              message: `Stall phrase detected in ${input.tool} output while tasks are pending`,
+              extra: { tool: input.tool, phrases: stallPhrases },
+            },
           });
         }
+      }
+    },
 
-        if (activeSpecs.length > 0) {
-          const specContext = activeSpecs
-            .map((s) => `- **${s.specId}** (${s.title}): ${s.status}, ${s.completedTasks}/${s.tasksCount} tasks done`)
-            .join("\n");
-          output.context.push(
-            `# Active SPECs\n${specContext}\n\n` +
-              `Continue implementing tasks. Do NOT ask for confirmation between tasks.\n\n` +
-              `**IMPORTANT**: Call read_memory and list_memories at session start to recall prior context. ` +
-              `Call write_memory after completing each SPEC task to persist progress.`,
-          );
-        }
-      } catch {
-        // No specs directory
+    "experimental.session.compacting": async (_input, output) => {
+      const activeSpecs = await scanActiveSpecs(directory);
+      if (activeSpecs.length > 0) {
+        const specContext = activeSpecs
+          .map((s) => `- **${s.specId}** (${s.title}): ${s.status}, ${s.completedTasks}/${s.tasksCount} tasks done`)
+          .join("\n");
+
+        const pendingContext =
+          activeSpecs.some((s) => s.completedTasks < s.tasksCount)
+            ? buildContinuationPrompt(
+                activeSpecs.filter((s) => s.completedTasks < s.tasksCount),
+                false,
+              )
+            : "";
+
+        output.context.push(
+          `# Active SPECs\n${specContext}\n${pendingContext}\n` +
+            `**IMPORTANT**: Call read_memory and list_memories at session start to recall prior context. ` +
+            `Call write_memory after completing each SPEC task to persist progress.`,
+        );
       }
     },
 
     "experimental.chat.system.transform": async (_input, output) => {
-      output.system = [EXECUTOR_SYSTEM_PROMPT];
+      const parts = [EXECUTOR_SYSTEM_PROMPT];
+
+      // Check for incomplete SPEC tasks and inject continuation prompt
+      const activeSpecs = await scanActiveSpecs(directory);
+      const specsWithPending = activeSpecs.filter((s) => s.tasksCount > 0 && s.completedTasks < s.tasksCount);
+      if (specsWithPending.length > 0) {
+        parts.push(buildContinuationPrompt(specsWithPending, stoppedWithPendingWork));
+        // Reset flag after injecting -- it served its purpose for this turn
+        stoppedWithPendingWork = false;
+      }
+
+      output.system = parts;
     },
 
     tool: {
