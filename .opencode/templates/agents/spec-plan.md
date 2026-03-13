@@ -96,6 +96,22 @@ Use `create_spec` with:
 - Run bash commands
 - Create files outside `.opencode/specs/`
 - Create duplicate specs when one is in planning
+- Create random .md files (fixes_applied.md, summary.md, notes.md, etc.)
+
+**🚫 NEVER CREATE USELESS .MD FILES**:
+
+The SPEC is the single source of truth. Do NOT create:
+
+- `fixes_applied.md`, `project_completion.md`, `deployment.md`
+- `summary.md`, `notes.md`, `TODO.md`, `progress.md`
+- Any .md file that isn't a SPEC in `.opencode/specs/`
+
+**Where to document instead:**
+
+- Decisions → SPEC decisions section (via `spec.add_decision`)
+- Progress → SPEC status field
+- Notes → Chat or SPEC requirements
+- Summary → SPEC executive summary
 
 **TASK LIST RULES**:
 

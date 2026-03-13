@@ -158,6 +158,62 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
           });
         }
       }
+
+      // BLOCK creation of useless .md files (garbage documentation)
+      const forbiddenMdPatterns = [
+        /fixes_applied.*\.md$/i,
+        /project_completion.*\.md$/i,
+        /deployment.*\.md$/i,
+        /summary.*\.md$/i,
+        /notes.*\.md$/i,
+        /TODO.*\.md$/i,
+        /changelog.*\.md$/i,
+        /progress.*\.md$/i,
+        /status.*\.md$/i,
+        /implementation_plan.*\.md$/i,
+        /testing_plan.*\.md$/i,
+        /meeting_notes.*\.md$/i,
+        /migration_plan.*\.md$/i,
+        /setup.*\.md$/i,
+        /todo.*\.md$/i,
+      ];
+
+      const allowedMdPaths = [".opencode/specs/", ".opencode/SPEC-INDEX.md"];
+
+      if (
+        input.tool === "write_file" ||
+        input.tool === "create_file" ||
+        input.tool === "edit_file"
+      ) {
+        const isMdFile = filePath.toLowerCase().endsWith(".md");
+        const isAllowedPath = allowedMdPaths.some((allowed) =>
+          filePath.includes(allowed),
+        );
+        const isForbidden = forbiddenMdPatterns.some((pattern) =>
+          pattern.test(filePath),
+        );
+
+        if (isMdFile && !isAllowedPath && isForbidden) {
+          await client.app.log({
+            body: {
+              service: "symbolic-executor",
+              level: "error",
+              message: `Blocked creation of useless .md file: ${filePath}`,
+              extra: {
+                tool: input.tool,
+                file: filePath,
+                reason:
+                  "Useless documentation files clutter git and waste tokens. Use SPEC for documentation.",
+                suggestion:
+                  "Log decisions in SPEC via spec.add_decision, update SPEC status, or add to SPEC requirements",
+              },
+            },
+          });
+          throw new Error(
+            `Cannot create '${filePath}': Useless .md files are forbidden. Document in SPEC instead (decisions, requirements, or status).`,
+          );
+        }
+      }
     },
 
     // Mode detection disabled - OpenCode hook signature changed

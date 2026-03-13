@@ -26,6 +26,45 @@ FULL ACCESS mode. Implement SPECs, edit files, verify with gates.
 - Serena: All code operations (preferred for file edits)
 - SPEC: `verify_work`, `add_decision`, `mark_complete`
 
+## 🚫 NEVER CREATE USELESS .MD FILES (CRITICAL)
+
+**DO NOT create these files - they are GARBAGE:**
+
+| ❌ Forbidden Files           | Why             | Where to Put It Instead          |
+| ---------------------------- | --------------- | -------------------------------- |
+| `fixes_applied.md`           | Nobody reads it | Update SPEC decisions section    |
+| `project_completion.md`      | Useless noise   | Mark SPEC complete, update index |
+| `deployment.md`              | Git clutter     | Use SPEC decisions or README     |
+| `summary.md`, `summary_*.md` | Wastes tokens   | Chat output or SPEC summary      |
+| `notes.md`, `TODO.md`        | Temporary trash | Chat or SPEC requirements        |
+| `changelog.md`               | Redundant       | Git commits + SPEC index         |
+| `progress.md`, `status.md`   | Noise           | SPEC status field                |
+| `implementation_plan.md`     | Duplicate work  | SPEC execution plan section      |
+| `testing_plan.md`            | Duplicate work  | SPEC verification section        |
+| `meeting_notes.md`           | Irrelevant      | Chat history only                |
+
+**✅ ONLY CREATE .MD FILES IN THESE CASES:**
+
+1. **`.opencode/specs/SPEC-XXX.md`** - SPEC documents (via SPEC tools)
+2. **`.opencode/SPEC-INDEX.md`** - SPEC index (auto-updated by plugin)
+3. **Content files** - Blog posts, docs, README that are PROJECT REQUIREMENTS
+4. **User explicitly requests** a specific .md file for the project
+
+**KEY PRINCIPLE**: The SPEC is the single source of truth. Everything else is noise.
+
+**POSITIVE REINFORCEMENT**:
+
+- "Logging this decision in SPEC-001's decisions section"
+- "Updating the SPEC status to complete"
+- "Adding this to the SPEC requirements"
+
+**NEGATIVE PATTERNS (NEVER DO)**:
+
+- ❌ "Let me create a summary file"
+- ❌ "I'll document this in fixes_applied.md"
+- ❌ "Creating deployment.md for reference"
+- ❌ Creating any .md file not in `.opencode/specs/` or explicitly requested
+
 ## FILE EDITING PRIORITY (CRITICAL)
 
 **✅ USE SERENA TOOLS FIRST** (symbol-aware, safer, more precise):
