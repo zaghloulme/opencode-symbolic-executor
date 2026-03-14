@@ -54,9 +54,7 @@ node scripts/merge-config.js
 
 This script will:
 - Backup existing config to `~/.config/opencode/opencode.json.backup`
-- Add `symbolic-executor` to plugins array
-- Add `deferLoading: true` to all MCPs except `serena`
-- Add triggers to MCPs for on-demand loading
+- Add `opencode-symbolic-executor` to plugins array
 
 ---
 
@@ -70,9 +68,8 @@ Should load without errors. Test symbolic-executor tools:
 - `create_spec`
 - `review_plan`
 - `verify_work`
-- `search_decisions`
-- `search_mistakes`
-- `tool_search`
+- `search_tools`
+- `get_tool_schema`
 
 ---
 
@@ -85,7 +82,7 @@ node ~/.config/opencode/plugins/symbolic-executor/bin/init
 ```
 
 This creates:
-- `.opencode/config.json` (MCP servers with deferLoading)
+- `.opencode/config.json` (project config)
 - `.opencode/constitution.md` (project principles)
 - `.opencode/SPEC-INDEX.md` (SPEC tracker)
 - `.opencode/specs/` (individual SPECs)
@@ -154,10 +151,8 @@ npx -y @context7/mcp-server --help
 
 After installation, the following changes are made:
 
-1. **Plugin Added:** `symbolic-executor` to global plugins
-2. **MCP Servers:** All except `serena` set to `deferLoading: true`
-3. **Triggers Added:** MCPs load on-demand based on keywords
-4. **Backup Created:** `~/.config/opencode/opencode.json.backup`
+1. **Plugin Added:** `opencode-symbolic-executor` to global plugins
+2. **Backup Created:** `~/.config/opencode/opencode.json.backup`
 
 ---
 

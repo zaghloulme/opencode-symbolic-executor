@@ -8,7 +8,6 @@
         "-y",
         "next-devtools-mcp@latest"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "context7": {
@@ -19,7 +18,6 @@
         "--api-key",
         "ctx7sk-bc52e3be-469b-4b9e-b5a9-7fa29ff0ec54"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "docling": {
@@ -31,7 +29,6 @@
         "docling-mcp",
         "docling-mcp-server"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "sequential-thinking": {
@@ -40,7 +37,6 @@
         "-y",
         "@modelcontextprotocol/server-sequential-thinking"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "git": {
@@ -48,7 +44,6 @@
         "/home/main/.local/bin/uvx",
         "mcp-server-git"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "kindly-websearch": {
@@ -59,7 +54,6 @@
         "kindly-web-search-mcp-server",
         "start-mcp-server"
       ],
-      "deferLoading": true,
       "tools": []
     },
     "lighthouse": {
@@ -68,7 +62,6 @@
         "-y",
         "lighthouse-mcp"
       ],
-      "deferLoading": true,
       "tools": []
     }
   }

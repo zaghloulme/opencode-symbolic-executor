@@ -1,12 +1,12 @@
 # opencode-symbolic-executor
 
-SPEC-driven development for OpenCode with hash-anchored edits and lazy MCP tool loading.
+SPEC-driven development for OpenCode with hash-anchored edits and token-efficient agent tool sets.
 
 ## What It Does
 
 - **SPEC-driven workflow**: Create requirements → implement → verify (no vague prompts)
 - **Hash-anchored edits**: LINE#ID format prevents stale line errors (6.7% → 68.3% success rate)
-- **Lazy tool loading**: Catalog builds on session start, tools load on-demand (85% context reduction)
+- **Token usage**: Per-agent tool filtering (symb-plan and symb-chat disable unneeded tools to reduce prompt size)
 - **Three agents**: symb-plan (read-only), symb-build (full access), symb-chat (ask-first)
 - **Task rules**: Agent creates tasks for itself only—no "confirm" or "test" tasks for users
 
@@ -57,6 +57,7 @@ Casual conversation, brainstorming, and research.
 
 Agents are installed to `~/.config/opencode/agents/`. On each session start the plugin:
 - **Disables** OpenCode’s built-in primary agents (build, plan, chat) in `~/.config/opencode/opencode.json` via `agent.<name>.disable: true`
+- **Overwrites** symb-plan, symb-build, symb-chat from the plugin templates (so you get the latest, including per-agent `tools` for token reduction)
 - Sets **default_agent** to `symb-build`
 - **Prunes** any other agent files in that directory so only symb-plan, symb-build, symb-chat remain
 
@@ -103,12 +104,13 @@ Edit `~/.config/opencode/opencode.json`:
 
 ### Per-project (overrides global)
 
-Create `.opencode/config.json` in project root:
+Create `.opencode/config.json` in project root (or set MCP under `mcp` in project `opencode.json` if your config uses that shape):
 
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "serena": {
+      "type": "local",
       "command": [
         "uvx",
         "--from",
@@ -122,18 +124,7 @@ Create `.opencode/config.json` in project root:
         "--open-web-dashboard",
         "False"
       ],
-      "deferLoading": true,
-      "triggers": [
-        "code",
-        "symbol",
-        "refactor",
-        "edit",
-        "find",
-        "search",
-        "typescript",
-        "vue"
-      ],
-      "description": "Symbolic code operations (deferred loading for token efficiency)"
+      "enabled": true
     }
   }
 }
@@ -146,8 +137,6 @@ Create `.opencode/config.json` in project root:
 | `--context ide`              | Reduces tool duplication for terminal/IDE clients               |
 | `--project <path>`           | Auto-activates project at startup (no manual activation needed) |
 | `--open-web-dashboard False` | Disables web UI (saves resources in remote dev environments)    |
-| `deferLoading: true`         | On-demand tool loading (saves ~1000+ tokens per session)        |
-| `triggers`                   | Loads Serena only when relevant keywords are detected           |
 
 **Global MCPs** load for all projects. **Local MCPs** (`.opencode/config.json`) override per-project.
 

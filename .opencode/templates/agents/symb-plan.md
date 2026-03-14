@@ -6,6 +6,15 @@ permission:
   file.delete: deny
   bash: deny
   "*": allow
+# Reduce tokens: only planning/read-only plugin tools (build-only tools disabled)
+tools:
+  "spec.add_task": false
+  "spec.add_decision": false
+  "spec.mark_complete": false
+  verify_work: false
+  git_commit_and_push: false
+  read_with_hashes: false
+  hashline_edit: false
 ---
 
 ## PLAN MODE — SPEC-Driven Planning
