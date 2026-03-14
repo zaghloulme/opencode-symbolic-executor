@@ -46,13 +46,15 @@ const LAZY_RENAME_PATH = [
 ];
 
 export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
-  const registry = await ToolRegistry.create(path.join(directory, "registry"));
+  const pluginRoot = path.dirname(new URL(import.meta.url).pathname);
+  const registryDir = path.join(pluginRoot, "../registry");
+  const registry = await ToolRegistry.create(registryDir);
   const dehydratedTools = createDehydratedTools(registry);
 
   // Stall detection state -- tracks whether agent went idle with pending work
   let stoppedWithPendingWork = false;
 
-  const templateDir = path.join(path.dirname(new URL(import.meta.url).pathname), "../.opencode/templates");
+  const templateDir = path.join(pluginRoot, "../.opencode/templates");
 
   const hooks: Hooks = {
     "command.execute.before": async (input, output) => {
