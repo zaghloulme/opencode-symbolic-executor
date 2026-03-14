@@ -120,11 +120,22 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
     "tool.execute.before": async (input, output) => {
       const filePath = output.args?.filePath || output.args?.path || "";
 
+      const isCodeFile = CODE_EXTENSIONS.some((ext) => filePath.toLowerCase().endsWith(ext));
+
+      // BLOCK hashline_edit and read_with_hashes on code files -- use Serena instead
+      if (isCodeFile && (input.tool === "hashline_edit" || input.tool === "read_with_hashes")) {
+        const serenaAlts =
+          input.tool === "hashline_edit"
+            ? "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods), insert_at_line, insert_after_symbol, insert_before_symbol"
+            : "Use Serena: read_file (line-numbered output), find_symbol (symbol lookup), get_symbols_overview (file structure)";
+        throw new Error(
+          `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${serenaAlts}. hashline_edit is for non-code files only (config, YAML, markdown).`,
+        );
+      }
+
       // BLOCK built-in file tools on EXISTING code files (Serena REQUIRED)
       // Allow 'write' on new files -- Serena can't create files from scratch
-      const isCodeFile = CODE_EXTENSIONS.some((ext) => filePath.toLowerCase().endsWith(ext));
       if (isCodeFile && BLOCKED_FILE_TOOLS.includes(input.tool)) {
-        // Allow 'write' if the file doesn't exist yet (new file creation)
         if (input.tool === "write" && filePath) {
           const fullPath = path.isAbsolute(filePath) ? filePath : path.resolve(directory, filePath);
           try {
@@ -135,11 +146,11 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         }
 
         const alternatives: Record<string, string> = {
-          edit: "Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
+          edit: "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods), insert_at_line",
           write:
-            "File already exists. Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
-          read: "Use: read_with_hashes(filePath) for LINE#ID format, or Serena find_symbol for code navigation",
-          patch: "Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
+            "File already exists. Use Serena: replace_lines, replace_symbol_body, insert_at_line. For NEW files: create_text_file",
+          read: "Use Serena: read_file (line-numbered), find_symbol (symbol lookup), get_symbols_overview (file structure)",
+          patch: "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods)",
         };
         throw new Error(
           `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${alternatives[input.tool] || "Use Serena tools."}`,
@@ -153,7 +164,7 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         const touchesCodeFile = CODE_EXTENSIONS.some((ext) => cmd.includes(ext));
         if (touchesCodeFile && fileEditPatterns.some((p) => p.test(cmd))) {
           throw new Error(
-            `BLOCKED: Cannot use bash for file editing on code files. Use Serena tools or hashline_edit workflow.`,
+            `BLOCKED: Cannot use bash for file editing on code files. Use Serena tools (replace_lines, insert_at_line, etc).`,
           );
         }
         if (/git\s+(commit|push)\b/i.test(cmd)) {
@@ -752,7 +763,7 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 
       read_with_hashes: tool({
         description:
-          "Read file with LINE#ID format for hashline_edit compatibility. Use BEFORE hashline_edit to get hash anchors.",
+          "Read NON-CODE files with LINE#ID format for hashline_edit. BLOCKED on code files — use Serena read_file instead.",
         args: {
           filePath: z.string().describe("Path to file (relative or absolute)"),
           includeHashPrefix: z.boolean().default(true),
@@ -787,7 +798,7 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 
       hashline_edit: tool({
         description:
-          "Edit files using LINE#ID format for precise, safe modifications. Use read_with_hashes first. For NEW files, use unanchored append (no pos field).",
+          "Edit NON-CODE files using LINE#ID anchors. BLOCKED on code files — use Serena replace_lines/replace_symbol_body. For NEW non-code files, use unanchored append (no pos field).",
         args: {
           filePath: z.string().describe("Path to file (relative or absolute)"),
           edits: z.array(

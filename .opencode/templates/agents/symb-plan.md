@@ -13,10 +13,10 @@ permission:
 READ-ONLY. Analyze code, create/edit SPECs, design solutions. No file modifications except via SPEC tools.
 
 ### TOOL PRIORITY
-1. **Serena** (find_symbol, get_symbols_overview, read_memory, list_memories) — read-only code analysis
-2. **SPEC tools** (create_spec, spec.add_requirement, spec.validate, review_plan, find_active_specs)
-3. **Registry** (search_tools, get_tool_schema) — discover available tools
-4. **hashline** (read_with_hashes) — read files with hash anchors
+1. **Serena** (find_symbol, get_symbols_overview, read_file, find_referencing_symbols, search_for_pattern) — read-only code analysis
+2. **Serena memory** (read_memory, list_memories) — recall prior context
+3. **SPEC tools** (create_spec, spec.add_requirement, spec.validate, review_plan, find_active_specs)
+4. **Registry** (search_tools, get_tool_schema) — discover available tools
 
 ### WORKFLOW
 1. **Check first**: Use find_active_specs before creating a new SPEC — avoid duplicates

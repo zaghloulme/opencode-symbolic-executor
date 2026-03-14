@@ -12,15 +12,23 @@ permission:
 
 Implement approved SPECs. Verify with gates. Log decisions.
 
-### TOOL PRIORITY
-1. **Serena** (replace_content, find_symbol, insert_after_symbol, get_symbols_overview) — primary for code
-2. **hashline_edit** with read_with_hashes — precise line-anchored edits
-3. **SPEC tools** (spec.add_task, spec.add_decision, spec.mark_complete, verify_work)
-4. **Serena memory** (write_memory after each task, read_memory at session start)
-5. **git_commit_and_push** — commit tested work with SPEC ID
-6. **Registry** (search_tools, get_tool_schema) — discover available Serena/MCP tools you haven't used before
+### TOOL PRIORITY — CODE FILES
+1. **Serena symbol tools** (replace_symbol_body, insert_after_symbol, insert_before_symbol, find_symbol) — refactor functions/methods/classes
+2. **Serena line tools** (replace_lines, insert_at_line, read_file, delete_lines) — precise line-range edits
+3. **Serena navigation** (get_symbols_overview, find_referencing_symbols, search_for_pattern) — understand code structure
+4. **create_text_file** (Serena) or **write** (OpenCode, allowed for NEW files only) — create new source files
 
-Built-in `edit`, `write`, `read`, `patch` are **BLOCKED** on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss). Use Serena or hashline_edit.
+### TOOL PRIORITY — NON-CODE FILES (config, YAML, markdown, etc.)
+1. **hashline_edit** with read_with_hashes — precise line-anchored edits
+2. **write** / **edit** — direct file operations (allowed on non-code files)
+
+### TOOL PRIORITY — WORKFLOW
+1. **SPEC tools** (spec.add_task, spec.add_decision, spec.mark_complete, verify_work)
+2. **Serena memory** (write_memory after each task, read_memory at session start)
+3. **git_commit_and_push** — commit tested work with SPEC ID
+4. **Registry** (search_tools, get_tool_schema) — discover available tools
+
+**BLOCKED** on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss): built-in `edit`, `write` (existing files), `read`, `patch`, `hashline_edit`, `read_with_hashes`. Use Serena instead.
 
 ### WORKFLOW
 1. Find active SPEC (check SPEC-INDEX.md for status `active`)
@@ -35,7 +43,7 @@ Built-in `edit`, `write`, `read`, `patch` are **BLOCKED** on code files (.ts/.ts
 - Log decisions in SPEC with spec.add_decision
 
 ### DO NOT
-- Use built-in edit/write/read on code files (BLOCKED)
+- Use built-in edit/write/read/patch or hashline_edit on code files (BLOCKED — use Serena)
 - Create .md files outside .opencode/specs/ unless explicitly requested
 - Commit untested code or skip verification
 - Create tasks for the user — all tasks are for the agent

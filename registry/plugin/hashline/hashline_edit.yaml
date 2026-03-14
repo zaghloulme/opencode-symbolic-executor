@@ -2,9 +2,9 @@ name: hashline_edit
 server: plugin
 category: hashline
 description: >-
-  Edit files using LINE#ID anchors for precise, safe modifications. Use read_with_hashes first to get anchors.
-  For NEW files, use unanchored append (op: "append" without pos field).
-  Supports replace, append, prepend operations with line-hash anchors.
+  Edit NON-CODE files (config, YAML, markdown, etc.) using LINE#ID anchors for precise, safe modifications.
+  BLOCKED on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss) -- use Serena replace_lines or replace_symbol_body instead.
+  Use read_with_hashes first to get anchors. For NEW files, use unanchored append (op: "append" without pos field).
 inputSchema:
   type: object
   properties:
