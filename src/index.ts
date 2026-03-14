@@ -49,7 +49,7 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
   const pluginRoot = path.dirname(new URL(import.meta.url).pathname);
   const registryDir = path.join(pluginRoot, "../registry");
   const registry = await ToolRegistry.create(registryDir);
-  const dehydratedTools = createDehydratedTools(registry);
+  const dehydratedTools = createDehydratedTools(registry, client);
 
   // Stall detection state -- tracks whether agent went idle with pending work
   let stoppedWithPendingWork = false;
