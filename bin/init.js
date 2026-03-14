@@ -1,38 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Project Initialization Command
- * 
- * Creates .opencode/ structure in current directory.
- * Only runs if:
- * - In project root (has package.json or .git)
- * - .opencode/ doesn't already exist
- * 
- * Creates:
- * - .opencode/config.json (MCP servers with deferLoading)
- * - .opencode/constitution.md (project principles)
- * - .opencode/SPEC-INDEX.md (SPEC tracker)
- * - .opencode/specs/ (individual SPECs)
- * - .opencode/memory/ (per-project memory index)
- * - .opencode/mistakes/ (mistake index)
- * - .opencode/decisions/ (decision logs)
- * 
- * Does NOT create:
- * - Sample SPECs (users create their own)
- * - Sample mistakes (users log their own)
- * - Sample decisions (users document their own)
+ * CLI fallback for project initialization.
+ * Creates minimal .opencode/ and .serena/ scaffolding.
+ * For full interactive setup, use /symb-init inside OpenCode.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
 
-// Template paths (check npm package location first, then git clone location)
-const NPM_PACKAGE_DIR = path.join(os.homedir(), '.npm/_npx/opencode-symbolic-executor')
-const GIT_PLUGIN_DIR = path.join(os.homedir(), '.config/opencode/plugins/symbolic-executor')
-const TEMPLATES_DIR = path.join(GIT_PLUGIN_DIR, '.opencode/templates')
-
-// Templates
 const CONSTITUTION_TEMPLATE = `# Project Constitution
 
 ## Principles
@@ -43,19 +19,17 @@ const CONSTITUTION_TEMPLATE = `# Project Constitution
    - Decisions documented with traceability
 
 2. **Code Quality**
-   - TypeScript strict mode
-   - Zero ESLint warnings
+   - Strict type checking
+   - Zero linter warnings
    - LSP errors block completion
 
 3. **Security**
    - No secrets in code
-   - CVE scanning before merge
    - Input validation required
 
 4. **Verification**
-   - Visual verification ≥90%
    - All acceptance criteria met
-   - Human-in-the-loop confirmation
+   - Build and tests pass before commit
 
 ## Architecture Boundaries
 
@@ -67,10 +41,8 @@ const CONSTITUTION_TEMPLATE = `# Project Constitution
 
 ## Verification Gates
 
-- Type Safety: 0 TypeScript errors
-- Linting: 0 ESLint warnings
-- Security: 0 critical CVEs
-- Visual: ≥90% match to goal
+- Type Safety: 0 compiler errors
+- Linting: 0 warnings
 - SPEC: All acceptance criteria met
 `
 
@@ -82,13 +54,6 @@ const SPEC_INDEX_TEMPLATE = `# SPEC Index
 ## Active SPECs
 
 ## Archived SPECs
-`
-
-const SERENA_IGNORE_TEMPLATE = `memories/
-`
-
-const SERENA_PROJECT_TEMPLATE = `project_name: ${path.basename(process.cwd())}
-description: Project initialized by Symbolic Executor
 `
 
 const CONFIG_TEMPLATE = `{
@@ -103,169 +68,87 @@ const CONFIG_TEMPLATE = `{
 }
 `
 
-function findPluginDir() {
-  // Check npm package location first
-  if (fs.existsSync(NPM_PACKAGE_DIR)) {
-    return NPM_PACKAGE_DIR
-  }
-  
-  // Fall back to git clone location
-  if (fs.existsSync(GIT_PLUGIN_DIR)) {
-    return GIT_PLUGIN_DIR
-  }
-  
-  return null
-}
+const SERENA_PROJECT_TEMPLATE = (name) => `project_name: "${name}"
+languages:
+- typescript
+encoding: "utf-8"
+ignore_all_files_in_gitignore: true
+ignored_paths: []
+read_only: false
+excluded_tools: []
+included_optional_tools: []
+fixed_tools: []
+initial_prompt: ""
+`
 
 async function init() {
   const cwd = process.cwd()
-  
-  console.log('🚀 Symbolic Executor Project Init\n')
-  
-  // Check if in project root (more lenient check)
+  const projectName = path.basename(cwd)
+
+  console.log('Symbolic Executor - Project Init\n')
+
   const hasPackage = fs.existsSync(path.join(cwd, 'package.json'))
   const hasGit = fs.existsSync(path.join(cwd, '.git'))
-  
-  // If neither exists, offer to initialize git
+
   if (!hasPackage && !hasGit) {
-    console.log('⚠️  Not in a recognized project root')
-    console.log('  (no package.json or .git found)\n')
-    
-    // Offer to initialize git
-    console.log('Would you like to initialize a git repository here?')
-    console.log('Run: git init\n')
-    console.log('Or create a package.json: npm init -y\n')
+    console.log('Not in a recognized project root (no package.json or .git).')
+    console.log('Run: git init   or   npm init -y')
     console.log('Then re-run: npx opencode-symbolic-executor init')
     process.exit(0)
   }
-  
+
   if (hasGit) {
-    console.log('✓ Project root detected (.git found)')
-  } else if (hasPackage) {
-    console.log('✓ Project root detected (package.json found)')
+    console.log('[ok] Project root detected (.git)')
+  } else {
+    console.log('[ok] Project root detected (package.json)')
   }
-  
-  // Check if .opencode/ already exists
+
   const opencodeDir = path.join(cwd, '.opencode')
   if (fs.existsSync(opencodeDir)) {
-    console.log('\n⚠️  .opencode/ already exists')
-    console.log('  Checking if initialization is complete...\n')
-    
-    // Check what's missing
-    const missing = []
-    const expected = [
-      'config.json',
-      'constitution.md',
-      'SPEC-INDEX.md',
-      'specs'
-    ]
-    
-    for (const item of expected) {
-      const itemPath = path.join(opencodeDir, item)
-      if (!fs.existsSync(itemPath)) {
-        missing.push(item)
-      }
-    }
-    
+    const expected = ['config.json', 'constitution.md', 'SPEC-INDEX.md', 'specs']
+    const missing = expected.filter(item => !fs.existsSync(path.join(opencodeDir, item)))
+
     if (missing.length === 0) {
-      console.log('✓ All files present, skipping initialization')
+      console.log('[ok] .opencode/ already initialized, nothing to do.')
+      console.log('\nFor full interactive setup, run /symb-init inside OpenCode.')
       return
     }
-    
-    console.log('Missing files/directories:')
-    missing.forEach(m => { console.log(`  - .opencode/${m}`) })
-    console.log('\nWould you like to create missing files? (y/n)')
-    
-    // For now, just create missing ones automatically
-    console.log('Creating missing files...\n')
+
+    console.log(`Missing: ${missing.join(', ')}. Creating...`)
   }
-  
-  // Create structure
-  console.log('\n📁 Creating .opencode/ structure...')
-  
-  await fs.promises.mkdir(opencodeDir, { recursive: true })
+
+  // Create .opencode/ structure
   await fs.promises.mkdir(path.join(opencodeDir, 'specs'), { recursive: true })
-  
+  console.log('  .opencode/specs/')
+
+  const writeIfMissing = async (filePath, content) => {
+    if (!fs.existsSync(filePath)) {
+      await fs.promises.writeFile(filePath, content)
+      console.log(`  ${path.relative(cwd, filePath)}`)
+    } else {
+      console.log(`  ${path.relative(cwd, filePath)} (exists)`)
+    }
+  }
+
+  await writeIfMissing(path.join(opencodeDir, 'config.json'), CONFIG_TEMPLATE)
+  await writeIfMissing(path.join(opencodeDir, 'constitution.md'), CONSTITUTION_TEMPLATE)
+  await writeIfMissing(path.join(opencodeDir, 'SPEC-INDEX.md'), SPEC_INDEX_TEMPLATE)
+
+  // Create .serena/ structure
   const serenaDir = path.join(cwd, '.serena')
   await fs.promises.mkdir(serenaDir, { recursive: true })
-  await fs.promises.mkdir(path.join(serenaDir, 'memories'), { recursive: true })
 
-  const registryDir = path.join(cwd, 'registry')
-  await fs.promises.mkdir(path.join(registryDir, 'code-nav/serena'), { recursive: true })
-  await fs.promises.mkdir(path.join(registryDir, 'knowledge/context7'), { recursive: true })
-  
-  console.log('  - .opencode/specs/')
-  console.log('  - .serena/memories/')
-  console.log('  - registry/ (tool definitions)')
-  
-  // Create config
-  const configPath = path.join(opencodeDir, 'config.json')
-  if (!fs.existsSync(configPath)) {
-    await fs.promises.writeFile(
-      configPath,
-      CONFIG_TEMPLATE
-    )
-    console.log('  - .opencode/config.json')
-  } else {
-    console.log('  ✓ .opencode/config.json (already exists)')
-  }
-  
-  // Create constitution
-  const constitutionPath = path.join(opencodeDir, 'constitution.md')
-  if (!fs.existsSync(constitutionPath)) {
-    await fs.promises.writeFile(
-      constitutionPath,
-      CONSTITUTION_TEMPLATE
-    )
-    console.log('  - .opencode/constitution.md')
-  } else {
-    console.log('  ✓ .opencode/constitution.md (already exists)')
-  }
-  
-  // Create SPEC index
-  const specIndexPath = path.join(opencodeDir, 'SPEC-INDEX.md')
-  if (!fs.existsSync(specIndexPath)) {
-    await fs.promises.writeFile(
-      specIndexPath,
-      SPEC_INDEX_TEMPLATE
-    )
-    console.log('  - .opencode/SPEC-INDEX.md')
-  } else {
-    console.log('  ✓ .opencode/SPEC-INDEX.md (already exists)')
-  }
-  
-  // Create .serena/project.yml
-  const serenaProjectPath = path.join(cwd, '.serena/project.yml')
-  if (!fs.existsSync(serenaProjectPath)) {
-    await fs.promises.writeFile(
-      serenaProjectPath,
-      SERENA_PROJECT_TEMPLATE
-    )
-    console.log('  - .serena/project.yml')
-  }
+  await writeIfMissing(path.join(serenaDir, 'project.yml'), SERENA_PROJECT_TEMPLATE(projectName))
+  await writeIfMissing(path.join(serenaDir, '.gitignore'), 'memories/\n')
 
-  // Create .serena/.gitignore
-  const serenaIgnorePath = path.join(cwd, '.serena/.gitignore')
-  if (!fs.existsSync(serenaIgnorePath)) {
-    await fs.promises.writeFile(
-      serenaIgnorePath,
-      SERENA_IGNORE_TEMPLATE
-    )
-    console.log('  - .serena/.gitignore')
-  }
-  
-  console.log('\n✅ Project initialization complete!\n')
+  console.log('\n[done] Project scaffolding created.\n')
   console.log('Next steps:')
-  console.log('1. Edit .opencode/constitution.md (define project principles)')
-  console.log('2. Edit .opencode/config.json (add your MCP servers)')
-  console.log('3. Start OpenCode: opencode')
-  console.log('4. Create first SPEC: "Create a SPEC for user authentication"')
-  console.log('\nWorkflow:')
-  console.log('  Plan Mode: Create SPEC → Add requirements → Validate → Approve')
-  console.log('  Build Mode: Implement tasks → Verify → Log decisions → Mark complete')
+  console.log('  1. Start OpenCode: opencode')
+  console.log('  2. Run /symb-init for full interactive setup (language servers, Serena activation, onboarding)')
+  console.log('  3. Or manually edit .serena/project.yml to configure languages')
 }
 
 init().catch(err => {
-  console.error('✗ Error:', err.message)
+  console.error('Error:', err.message)
   process.exit(1)
 })

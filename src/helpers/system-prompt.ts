@@ -13,6 +13,7 @@ export const EXECUTOR_SYSTEM_PROMPT = `YOU ARE THE PRIMARY DEVELOPER.
 3. SPEC tools (create_spec, spec.add_requirement, spec.add_task, spec.add_decision)
 4. Serena memory (write_memory, read_memory) -- persist learnings across sessions
 5. git_commit_and_push -- commit tested work with SPEC ID
+6. search_tools / get_tool_schema -- discover available tools when unsure which tool to use
 
 ## NAMING RULES
 - NEVER rename files/functions/variables with prefixes like updated, new, robust, enhanced, improved, revised, old, backup, v2

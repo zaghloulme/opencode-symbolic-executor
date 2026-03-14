@@ -52,10 +52,40 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
   // Stall detection state -- tracks whether agent went idle with pending work
   let stoppedWithPendingWork = false;
 
+  const templateDir = path.join(path.dirname(new URL(import.meta.url).pathname), "../.opencode/templates");
+
   const hooks: Hooks = {
+    "command.execute.before": async (input, output) => {
+      const cmd = input.command.replace(/^\//, "").replace(/-/g, "_");
+      const parts = output.parts as unknown as { type: string; text: string }[];
+      if (cmd === "symb_init") {
+        const templatePath = path.join(templateDir, "commands/symb-init.md");
+        try {
+          const prompt = await fs.readFile(templatePath, "utf-8");
+          parts.push({ type: "text", text: prompt });
+        } catch {
+          parts.push({
+            type: "text",
+            text: "Error: Could not load symb-init template. Run `npx opencode-symbolic-executor init` as fallback.",
+          });
+        }
+      }
+      if (cmd === "memories" || cmd === "memory" || cmd === "mem") {
+        const templatePath = path.join(templateDir, "commands/memories.md");
+        try {
+          const prompt = await fs.readFile(templatePath, "utf-8");
+          parts.push({ type: "text", text: `${prompt}\n\nUser query: ${input.arguments || "list all memories"}` });
+        } catch {
+          parts.push({
+            type: "text",
+            text: "Use Serena's `list_memories` tool to see all memories, then `read_memory` to read specific ones.",
+          });
+        }
+      }
+    },
+
     event: async ({ event }) => {
       if (event.type === "session.created") {
-        await maybeCreateOpencodeDirectory(directory);
         await installAgents();
         stoppedWithPendingWork = false;
       }
@@ -96,21 +126,20 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       if (isCodeFile && BLOCKED_FILE_TOOLS.includes(input.tool)) {
         // Allow 'write' if the file doesn't exist yet (new file creation)
         if (input.tool === "write" && filePath) {
-          const fullPath = path.resolve(directory, filePath);
+          const fullPath = path.isAbsolute(filePath) ? filePath : path.resolve(directory, filePath);
           try {
             await fs.access(fullPath);
-            // File exists -- block it, should use Serena
           } catch {
-            // File doesn't exist -- allow creation
             return;
           }
         }
 
         const alternatives: Record<string, string> = {
-          edit: "Use Serena replace_content or hashline_edit with read_with_hashes",
-          write: "Use Serena replace_content or hashline_edit with read_with_hashes (file already exists)",
-          read: "Use read_with_hashes (LINE#ID format) or Serena find_symbol",
-          patch: "Use Serena replace_content or hashline_edit with read_with_hashes",
+          edit: "Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
+          write:
+            "File already exists. Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
+          read: "Use: read_with_hashes(filePath) for LINE#ID format, or Serena find_symbol for code navigation",
+          patch: "Use: read_with_hashes(filePath) -> hashline_edit(filePath, edits), or Serena replace_content",
         };
         throw new Error(
           `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${alternatives[input.tool] || "Use Serena tools."}`,
@@ -725,30 +754,42 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
         description:
           "Read file with LINE#ID format for hashline_edit compatibility. Use BEFORE hashline_edit to get hash anchors.",
         args: {
-          filePath: z.string().describe("Path to file (relative to project root)"),
+          filePath: z.string().describe("Path to file (relative or absolute)"),
           includeHashPrefix: z.boolean().default(true),
         },
         async execute(args, context) {
           const { formatHashLines } = await import("./tools/hashline/hash-computation.js");
-          const fullPath = path.join(context.directory, args.filePath);
+          const fullPath = path.isAbsolute(args.filePath) ? args.filePath : path.join(context.directory, args.filePath);
 
           try {
             const content = await fs.readFile(fullPath, "utf-8");
-            return JSON.stringify({
+            const formatted = args.includeHashPrefix ? formatHashLines(content) : content;
+            const result: Record<string, unknown> = {
               success: true,
               filePath: args.filePath,
-              content: args.includeHashPrefix ? formatHashLines(content) : content,
-            });
+              content: formatted,
+            };
+            if (content === "") {
+              result.hint = "File is empty. Use hashline_edit with unanchored append (op: 'append', no pos) to add content.";
+            }
+            return JSON.stringify(result);
           } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+              return JSON.stringify({
+                success: false,
+                error: `File not found: ${args.filePath}. To create it, use 'write' (allowed for new code files) or hashline_edit with unanchored append.`,
+              });
+            }
             return JSON.stringify({ success: false, error: (error as Error).message });
           }
         },
       }),
 
       hashline_edit: tool({
-        description: "Edit files using LINE#ID format for precise, safe modifications. Use read_with_hashes first.",
+        description:
+          "Edit files using LINE#ID format for precise, safe modifications. Use read_with_hashes first. For NEW files, use unanchored append (no pos field).",
         args: {
-          filePath: z.string().describe("Path to file (relative to project root)"),
+          filePath: z.string().describe("Path to file (relative or absolute)"),
           edits: z.array(
             z.object({
               op: z.enum(["replace", "append", "prepend"]),
@@ -764,7 +805,9 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
           const { executeHashlineEdits } = await import("./tools/hashline/executor.js");
 
           try {
-            const fullPath = path.join(context.directory, args.filePath);
+            const fullPath = path.isAbsolute(args.filePath)
+              ? args.filePath
+              : path.join(context.directory, args.filePath);
 
             let content: string;
             try {
@@ -777,7 +820,7 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
                 } else {
                   return JSON.stringify({
                     success: false,
-                    error: `File not found: ${args.filePath}. Use unanchored append/prepend to create new files.`,
+                    error: `File not found: ${args.filePath}. To create a new file, use unanchored append (op: "append" without pos field).`,
                   });
                 }
               } else {
@@ -824,23 +867,3 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
   return hooks;
 };
 
-async function maybeCreateOpencodeDirectory(directory: string): Promise<void> {
-  try {
-    await fs.access(path.join(directory, ".opencode"));
-    return;
-  } catch {
-    // Doesn't exist
-  }
-
-  const hasPackage = await fs
-    .access(path.join(directory, "package.json"))
-    .then(() => true)
-    .catch(() => false);
-  const hasGit = await fs
-    .access(path.join(directory, ".git"))
-    .then(() => true)
-    .catch(() => false);
-
-  if (!hasPackage && !hasGit) return;
-  // Don't auto-create, let user run init command
-}

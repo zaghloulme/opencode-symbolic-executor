@@ -1,0 +1,10 @@
+name: verify_work
+server: plugin
+category: spec
+description: >-
+  Run verification gates (tsc --noEmit + vitest run). Use before committing to ensure code compiles and tests pass.
+inputSchema:
+  type: object
+  properties: {}
+example: |-
+  verify_work({})

@@ -58,7 +58,9 @@ export function formatHashLine(lineNumber: number, content: string): string {
  * @returns Formatted content with LINE#ID| on each line
  */
 export function formatHashLines(content: string): string {
-  if (!content) return "";
+  if (content === undefined || content === null) return "";
+
+  if (content === "") return formatHashLine(1, "");
 
   const lines = content.split("\n");
   return lines.map((line, index) => formatHashLine(index + 1, line)).join("\n");

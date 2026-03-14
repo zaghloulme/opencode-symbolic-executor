@@ -1,0 +1,19 @@
+name: create_spec
+server: plugin
+category: spec
+description: >-
+  Create a new SPEC document for planning. Generates SPEC-XXX ID, creates markdown file in .opencode/specs/, and updates SPEC-INDEX.md.
+inputSchema:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Short title for the SPEC.
+    description:
+      type: string
+      description: Initial description or executive summary.
+  required:
+    - title
+    - description
+example: |-
+  create_spec({ title: "Add auth middleware", description: "Implement JWT-based auth for API routes" })

@@ -1,0 +1,19 @@
+name: insert_after_symbol
+server: serena
+category: code-nav
+description: >-
+  Inserts content after the end of the definition of a given symbol. Useful for adding new methods to a class or new functions after an existing one.
+inputSchema:
+  type: object
+  properties:
+    name_path:
+      type: string
+      description: The exact name path of the symbol after which to insert (e.g. "MyClass/myMethod").
+    content:
+      type: string
+      description: The content to insert after the symbol.
+  required:
+    - name_path
+    - content
+example: |-
+  await serena["insert_after_symbol"]({ name_path: "UserService", content: "export function deleteUser(id: string) { ... }" });

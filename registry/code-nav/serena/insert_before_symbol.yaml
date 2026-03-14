@@ -1,0 +1,19 @@
+name: insert_before_symbol
+server: serena
+category: code-nav
+description: >-
+  Inserts content before the beginning of the definition of a given symbol. Useful for adding imports, decorators, or comments above a symbol.
+inputSchema:
+  type: object
+  properties:
+    name_path:
+      type: string
+      description: The exact name path of the symbol before which to insert.
+    content:
+      type: string
+      description: The content to insert before the symbol.
+  required:
+    - name_path
+    - content
+example: |-
+  await serena["insert_before_symbol"]({ name_path: "UserService", content: "import { Logger } from './logger';" });

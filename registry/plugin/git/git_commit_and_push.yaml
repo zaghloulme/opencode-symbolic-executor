@@ -1,0 +1,25 @@
+name: git_commit_and_push
+server: plugin
+category: git
+description: >-
+  Commit and push changes with enforced workflow: runs tsc verification, stages files, commits with SPEC-XXX prefix, and pushes. Use instead of raw git commit/push.
+inputSchema:
+  type: object
+  properties:
+    specId:
+      type: string
+      description: 'SPEC ID for commit message prefix (e.g. "SPEC-001").'
+    message:
+      type: string
+      description: Commit message (will be prefixed with specId).
+    files:
+      type: array
+      items:
+        type: string
+      description: 'Files to stage. Use ["."] for all changes.'
+  required:
+    - specId
+    - message
+    - files
+example: |-
+  git_commit_and_push({ specId: "SPEC-001", message: "Add auth middleware", files: ["."] })

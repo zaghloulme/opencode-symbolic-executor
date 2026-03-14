@@ -1,84 +1,113 @@
-# /symb_init - Symbolic Executor Initialization
+# /symb-init — Interactive Project Setup
 
-Creates `.opencode/` structure with SPEC-driven templates for the current project.
+You are setting up a new project with the Symbolic Executor plugin + Serena MCP.
 
-## Usage
+## Step 1: Gather Project Info
 
+Ask the user the following questions one at a time. Use sensible defaults.
+
+1. **Project name** — default: the current directory name
+2. **Primary language(s)** — present this list and ask them to pick one or more (comma-separated numbers):
+   ```
+   Common:
+     1. typescript    2. python    3. rust    4. go    5. java
+     6. kotlin        7. cpp       8. csharp  9. ruby  10. php
+   Other:
+     11. swift   12. dart    13. elixir  14. scala  15. lua
+     16. bash    17. vue     18. zig     19. haskell 20. clojure
+   ```
+   Note: For JavaScript projects, use `typescript`. For C projects, use `cpp`.
+3. **File encoding** — default: `utf-8` (only ask if they want something different)
+4. **Brief project description** — one sentence, used for Serena memory
+
+## Step 2: Create Project Structure
+
+After getting answers, create these files using `write` or `bash mkdir -p`:
+
+### `.opencode/config.json`
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "serena": {
+      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
+      "deferLoading": false,
+      "description": "Symbolic code operations (always loaded)"
+    }
+  }
+}
 ```
-/symb_init          # Initialize project
-/symb_init --force  # Force reinitialize (overwrite existing)
+
+### `.opencode/constitution.md`
+Generate a constitution based on the project info. Include:
+- SPEC-driven development principles
+- Code quality gates (type safety, linting, tests)
+- Architecture boundaries (fill in based on language/framework)
+- Verification gates
+
+### `.opencode/SPEC-INDEX.md`
+```markdown
+# SPEC Index
+
+| ID | Feature | Status | Iteration | Last Updated |
+|----|---------|--------|-----------|--------------|
+
+## Active SPECs
+
+## Archived SPECs
 ```
 
-## What It Creates
+### `.opencode/specs/` (empty directory)
+Create with `bash mkdir -p .opencode/specs`
 
+### `.serena/project.yml`
+Generate using the user's answers:
+```yaml
+project_name: "<project_name>"
+languages:
+- <language1>
+- <language2>
+encoding: "<encoding>"
+ignore_all_files_in_gitignore: true
+ignored_paths: []
+read_only: false
+excluded_tools: []
+included_optional_tools: []
+fixed_tools: []
+initial_prompt: ""
 ```
-.opencode/
-├── config.json          # MCP servers with deferLoading
-├── constitution.md      # Project principles
-├── SPEC-INDEX.md        # SPEC tracker
-├── tools-catalog.json   # Pre-built tool catalog (auto-generated)
-├── prompts/
-│   ├── plan-mode.md     # Plan mode system prompt
-│   ├── build-mode.md    # Build mode system prompt
-│   └── chat-mode.md     # Chat mode system prompt
-├── specs/               # Individual SPECs
-├── memories/
-│   └── index.md         # Memory index
-├── mistakes/            # Mistake logs
-└── decisions/           # Decision logs
+
+### `.serena/.gitignore`
+```
+memories/
 ```
 
-## Workflow
+### Do NOT create:
+- `.opencode/memories/` (Serena handles memories via `.serena/memories/`)
+- `.opencode/decisions/` (decisions go in SPEC files)
+- `.opencode/mistakes/` (not needed)
+- `.opencode/prompts/` (agents handle prompts)
+- `.opencode/tools-catalog.json` (registry handles this)
 
-1. **Check project root** (has package.json or .git)
-2. **Create directories** (.opencode/, specs/, memories/, etc.)
-3. **Create config files** (config.json, constitution.md, etc.)
-4. **Build tool catalog** (scans MCP servers, extracts metadata)
-5. **Show summary** with next steps
+## Step 3: Activate Serena
 
-## Post-Init Steps
+After creating all files:
 
-After initialization:
+1. Call `activate_project` with the project name from step 1
+2. Call `onboarding` to let Serena index the project
+3. Call `write_memory` with topic `"project-init"` and content summarizing:
+   - Project name and description
+   - Languages configured
+   - Date initialized
+   - Tools available (SPEC tools, hashline, verify_work, git_commit_and_push)
 
-1. Edit `.opencode/constitution.md` (define project principles)
-2. Edit `.opencode/config.json` (add your MCP servers)
-3. Start OpenCode: `opencode`
-4. Create first SPEC: "Create a SPEC for user authentication"
+## Step 4: Report Completion
 
-## Workflow Modes
-
-**Plan Mode**: Create SPEC → Add requirements → Validate → Approve  
-**Build Mode**: Implement tasks → Verify → Log decisions → Mark complete  
-**Chat Mode**: General questions, research, quick fixes
-
-## Commands Available After Init
-
-- `create_spec` - Create new SPEC
-- `spec.add_requirement` - Add requirement to SPEC
-- `spec.add_task` - Add task to SPEC
-- `spec.add_decision` - Log decision
-- `spec.mark_complete` - Mark SPEC complete
-- `verify_work` - Run verification gates
-- `search_memories` - Search project memories
-- `tool_search` - Search for available tools
-- `/memories` - Quick memory search
-
-## Error Handling
-
-If `.opencode/` already exists:
-- Ask for confirmation
-- Use `--force` to overwrite
-
-If not in project root:
-- Warn user
-- Suggest: `git init` or `npm init -y`
-
-## Template Sources
-
-Templates loaded from:
-- `~/.config/opencode/plugins/symbolic-executor/.opencode/templates/`
-- Or npm package location
-
----
-
-**Note**: This command is read-only until user confirms. No files modified without approval.
+Show the user a summary:
+- Files created (list them)
+- Serena project activated: yes/no
+- Onboarding complete: yes/no
+- Next steps:
+  1. Review `.opencode/constitution.md` and customize
+  2. Start planning: create your first SPEC
+  3. Use `search_tools` to discover available tools

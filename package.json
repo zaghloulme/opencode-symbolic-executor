@@ -1,6 +1,6 @@
 {
   "name": "opencode-symbolic-executor",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "SPEC-driven development workflow with hash-anchored edits for OpenCode",
   "type": "module",
   "main": "dist/index.js",

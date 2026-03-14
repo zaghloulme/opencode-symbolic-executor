@@ -1,0 +1,19 @@
+name: search_for_pattern
+server: serena
+category: code-nav
+description: >-
+  Performs a regex or text search for a pattern across the project. Returns matching locations with file paths and line numbers.
+inputSchema:
+  type: object
+  properties:
+    pattern:
+      type: string
+      description: The search pattern (regex or plain text).
+    relative_path:
+      type: string
+      default: ''
+      description: Optional. Restrict search to this file or directory.
+  required:
+    - pattern
+example: |-
+  await serena["search_for_pattern"]({ pattern: "TODO|FIXME", relative_path: "src/" });

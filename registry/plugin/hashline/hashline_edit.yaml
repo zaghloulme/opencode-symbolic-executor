@@ -1,0 +1,44 @@
+name: hashline_edit
+server: plugin
+category: hashline
+description: >-
+  Edit files using LINE#ID anchors for precise, safe modifications. Use read_with_hashes first to get anchors.
+  For NEW files, use unanchored append (op: "append" without pos field).
+  Supports replace, append, prepend operations with line-hash anchors.
+inputSchema:
+  type: object
+  properties:
+    filePath:
+      type: string
+      description: Path to file (relative to project root or absolute).
+    edits:
+      type: array
+      items:
+        type: object
+        properties:
+          op:
+            type: string
+            enum: [replace, append, prepend]
+          pos:
+            type: string
+            description: 'LINE#ID anchor (e.g. "11#VK"). Omit for unanchored insert on new files.'
+          end:
+            type: string
+            description: 'LINE#ID end anchor for range replace.'
+          lines:
+            type: [string, array]
+            description: Content to insert.
+    delete:
+      type: boolean
+      description: If true, delete the file.
+    rename:
+      type: string
+      description: New filename to rename to.
+  required:
+    - filePath
+    - edits
+example: |-
+  // Edit existing file (after read_with_hashes):
+  hashline_edit({ filePath: "src/utils.ts", edits: [{ op: "replace", pos: "5#VK", end: "8#PM", lines: "return x + y;" }] })
+  // Create new file (unanchored append):
+  hashline_edit({ filePath: "src/new.ts", edits: [{ op: "append", lines: "export const x = 1;" }] })

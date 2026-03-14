@@ -1,0 +1,23 @@
+name: find_referencing_symbols
+server: serena
+category: code-nav
+description: >-
+  Finds symbols that reference the symbol at the given location. Useful for understanding dependencies and usage of a symbol before refactoring.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file containing the symbol.
+    line:
+      type: integer
+      description: 1-based line number of the symbol.
+    column:
+      type: integer
+      description: 1-based column of the symbol.
+  required:
+    - relative_path
+    - line
+    - column
+example: |-
+  await serena["find_referencing_symbols"]({ relative_path: "src/auth.ts", line: 5, column: 17 });

@@ -1,0 +1,21 @@
+name: read_file
+server: serena
+category: code-nav
+description: >-
+  Reads a file within the project directory. Returns the file content with line numbers for use with other Serena editing tools.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file relative to project root.
+    start_line:
+      type: integer
+      description: Optional 1-based start line to read from.
+    end_line:
+      type: integer
+      description: Optional 1-based end line to read to.
+  required:
+    - relative_path
+example: |-
+  await serena["read_file"]({ relative_path: "src/index.ts" });

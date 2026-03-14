@@ -1,0 +1,21 @@
+name: read_with_hashes
+server: plugin
+category: hashline
+description: >-
+  Read file with LINE#ID format for hashline_edit compatibility. Returns each line prefixed with its line number and 2-char hash anchor. Use BEFORE hashline_edit to get anchors. Supports both relative and absolute paths.
+inputSchema:
+  type: object
+  properties:
+    filePath:
+      type: string
+      description: Path to file (relative to project root or absolute).
+    includeHashPrefix:
+      type: boolean
+      default: true
+      description: Whether to include LINE#ID prefixes.
+  required:
+    - filePath
+example: |-
+  read_with_hashes({ filePath: "src/utils.ts" })
+  // Returns: 1#VK|import { z } from 'zod';
+  //          2#PM|export function add(...

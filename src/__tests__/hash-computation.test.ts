@@ -71,7 +71,13 @@ describe("formatHashLines", () => {
     expect(lines[2]).toMatch(/^3#[ZPMQVRWSNKTXJBYH]{2}\|line three$/);
   });
 
-  it("returns empty string for empty content", () => {
-    expect(formatHashLines("")).toBe("");
+  it("returns single anchor for empty content", () => {
+    const result = formatHashLines("");
+    expect(result).toMatch(/^1#[A-Z]{2}\|$/);
+  });
+
+  it("returns empty string for null/undefined", () => {
+    expect(formatHashLines(null as unknown as string)).toBe("");
+    expect(formatHashLines(undefined as unknown as string)).toBe("");
   });
 });

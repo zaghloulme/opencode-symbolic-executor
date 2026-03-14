@@ -1,0 +1,21 @@
+name: search_tools
+server: plugin
+category: discovery
+description: >-
+  Search for available tools in the registry by natural language query. Use this to discover which Serena, hashline, SPEC, or other tools are available for your task.
+inputSchema:
+  type: object
+  properties:
+    query:
+      type: string
+      description: 'Natural language description of what you want to do (e.g. "edit a file", "find symbol", "create new file").'
+    limit:
+      type: integer
+      default: 5
+      description: Maximum number of results.
+  required:
+    - query
+example: |-
+  search_tools({ query: "edit existing code file" })
+  search_tools({ query: "create new file from scratch" })
+  search_tools({ query: "find where a function is used" })

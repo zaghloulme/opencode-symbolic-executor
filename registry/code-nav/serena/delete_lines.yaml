@@ -1,0 +1,23 @@
+name: delete_lines
+server: serena
+category: code-nav
+description: >-
+  Deletes a range of lines within a file. Use with caution.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file relative to project root.
+    start_line:
+      type: integer
+      description: 1-based start line number (inclusive).
+    end_line:
+      type: integer
+      description: 1-based end line number (inclusive).
+  required:
+    - relative_path
+    - start_line
+    - end_line
+example: |-
+  await serena["delete_lines"]({ relative_path: "src/old.ts", start_line: 10, end_line: 20 });

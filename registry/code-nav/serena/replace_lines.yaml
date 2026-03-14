@@ -1,0 +1,27 @@
+name: replace_lines
+server: serena
+category: code-nav
+description: >-
+  Replaces a range of lines within a file with new content. Use line numbers from read_file or find_symbol output.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file relative to project root.
+    start_line:
+      type: integer
+      description: 1-based start line number (inclusive).
+    end_line:
+      type: integer
+      description: 1-based end line number (inclusive).
+    new_content:
+      type: string
+      description: The replacement content.
+  required:
+    - relative_path
+    - start_line
+    - end_line
+    - new_content
+example: |-
+  await serena["replace_lines"]({ relative_path: "src/utils.ts", start_line: 10, end_line: 15, new_content: "return x + y;" });

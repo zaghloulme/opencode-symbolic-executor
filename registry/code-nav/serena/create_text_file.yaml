@@ -1,0 +1,19 @@
+name: create_text_file
+server: serena
+category: code-nav
+description: >-
+  Creates or overwrites a file in the project directory. Use this to create new source files.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file relative to project root.
+    content:
+      type: string
+      description: The file content to write.
+  required:
+    - relative_path
+    - content
+example: |-
+  await serena["create_text_file"]({ relative_path: "src/lib/utils.ts", content: "export function add(a: number, b: number) { return a + b; }" });

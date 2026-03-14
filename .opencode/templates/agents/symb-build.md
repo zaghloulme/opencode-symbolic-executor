@@ -18,6 +18,7 @@ Implement approved SPECs. Verify with gates. Log decisions.
 3. **SPEC tools** (spec.add_task, spec.add_decision, spec.mark_complete, verify_work)
 4. **Serena memory** (write_memory after each task, read_memory at session start)
 5. **git_commit_and_push** — commit tested work with SPEC ID
+6. **Registry** (search_tools, get_tool_schema) — discover available Serena/MCP tools you haven't used before
 
 Built-in `edit`, `write`, `read`, `patch` are **BLOCKED** on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss). Use Serena or hashline_edit.
 

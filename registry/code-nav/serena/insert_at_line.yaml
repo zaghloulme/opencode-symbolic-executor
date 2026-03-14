@@ -1,0 +1,23 @@
+name: insert_at_line
+server: serena
+category: code-nav
+description: >-
+  Inserts content at a given line in a file. Content is inserted before the specified line number.
+inputSchema:
+  type: object
+  properties:
+    relative_path:
+      type: string
+      description: Path to the file relative to project root.
+    line:
+      type: integer
+      description: 1-based line number at which to insert.
+    content:
+      type: string
+      description: The content to insert.
+  required:
+    - relative_path
+    - line
+    - content
+example: |-
+  await serena["insert_at_line"]({ relative_path: "src/index.ts", line: 1, content: "import { z } from 'zod';" });
