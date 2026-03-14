@@ -11,39 +11,19 @@ import path from 'node:path'
 
 const CONSTITUTION_TEMPLATE = `# Project Constitution
 
-## Principles
+Project contract: the agent MUST follow these rules in this repo.
 
-1. **SPEC-Driven Development**
-   - No implementation without approved SPEC
-   - All requirements must be testable
-   - Decisions documented with traceability
+## RULES
+- MUST NOT implement without an approved SPEC. All requirements MUST be testable.
+- MUST NOT ship with compiler errors, linter warnings, or LSP errors. Fix before commit.
+- MUST NOT put secrets in code. MUST validate all inputs.
+- MUST meet all SPEC acceptance criteria and run build/tests before commit. Document decisions in the SPEC.
 
-2. **Code Quality**
-   - Strict type checking
-   - Zero linter warnings
-   - LSP errors block completion
+## GATES (definition of done)
+Ship only when: 0 compiler errors, 0 lint warnings, all SPEC acceptance criteria met.
 
-3. **Security**
-   - No secrets in code
-   - Input validation required
-
-4. **Verification**
-   - All acceptance criteria met
-   - Build and tests pass before commit
-
-## Architecture Boundaries
-
-<!-- Define project layers and dependencies -->
-
-## Code Style
-
-<!-- Define coding conventions -->
-
-## Verification Gates
-
-- Type Safety: 0 compiler errors
-- Linting: 0 warnings
-- SPEC: All acceptance criteria met
+## PROJECT-SPECIFIC (optional)
+<!-- Architecture layers, dependencies, code style. Fill based on language/framework. -->
 `
 
 const SPEC_INDEX_TEMPLATE = `# SPEC Index

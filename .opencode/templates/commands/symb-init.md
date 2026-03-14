@@ -61,11 +61,12 @@ After getting answers, create these files:
 This file is for project-specific plugin settings only. Serena MCP is global.
 
 ### `.opencode/constitution.md`
-Generate a constitution based on the project info. Include:
-- SPEC-driven development principles
-- Code quality gates (type safety, linting, tests)
-- Architecture boundaries (fill in based on language/framework)
-- Verification gates
+Generate a short, contract-style constitution (target: under 20 lines). Structure:
+- **One-line purpose**: "Project contract: the agent MUST follow these rules in this repo."
+- **RULES**: Bullet list with MUST/MUST NOT for: SPEC-driven (no implementation without approved SPEC; requirements testable; decisions in SPEC), code quality (0 compiler/lint/LSP errors), security (no secrets, validate inputs), verification (acceptance criteria + build/tests before commit). One idea per bullet; no duplication.
+- **GATES**: Single line: "Ship only when: 0 compiler errors, 0 lint warnings, all SPEC acceptance criteria met."
+- **PROJECT-SPECIFIC** (optional): Architecture layers and code style based on language/framework.
+Do not repeat verification criteria in both RULES and GATES.
 
 ### `.opencode/SPEC-INDEX.md`
 ```markdown
@@ -136,6 +137,6 @@ Show the user a summary:
 - Serena project activated: yes/no
 - Onboarding complete: yes/no
 - Next steps:
-  1. Review `.opencode/constitution.md` and customize
+  1. Review `.opencode/constitution.md` and customize (project contract for the agent; keep under ~20 lines)
   2. Start planning: create your first SPEC
   3. Use `search_tools` to discover available tools

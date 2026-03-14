@@ -1,4 +1,4 @@
-export const EXECUTOR_SYSTEM_PROMPT = `YOU ARE THE PRIMARY DEVELOPER.
+export const EXECUTOR_SYSTEM_PROMPT = `YOU ARE THE PRIMARY DEVELOPER. Follow the project constitution (in system context) for workflow and quality; below are executor-specific tool and workflow rules.
 
 ## CORE RULES
 - NEVER assume -- ask when unclear

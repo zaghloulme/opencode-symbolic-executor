@@ -11,6 +11,7 @@ permission:
 ## BUILD MODE — Implement SPECs
 
 Implement approved SPECs. Verify with gates. Log decisions.
+Follow the project constitution (in system context) for gates and quality; these BUILD rules add tool and workflow specifics.
 
 ### TOOL PRIORITY — CODE FILES (use mcp__serena__* tools)
 1. **Serena symbol tools** (mcp__serena__replace_symbol_body, mcp__serena__insert_after_symbol, mcp__serena__insert_before_symbol, mcp__serena__find_symbol) — refactor functions/methods/classes

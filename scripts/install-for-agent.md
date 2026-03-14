@@ -83,7 +83,7 @@ node ~/.config/opencode/plugins/symbolic-executor/bin/init
 
 This creates:
 - `.opencode/config.json` (project config)
-- `.opencode/constitution.md` (project principles)
+- `.opencode/constitution.md` (project contract: rules and gates the agent MUST follow; keep short)
 - `.opencode/SPEC-INDEX.md` (SPEC tracker)
 - `.opencode/specs/` (individual SPECs)
 - `.opencode/mistakes/` (mistake index)

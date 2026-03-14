@@ -6,7 +6,7 @@ permission:
   file.delete: deny
   bash: deny
   "*": allow
-# Reduce tokens: only planning/read-only plugin tools (build-only tools disabled)
+# Reduce tokens: planning/read-only only (build and heavy tools disabled)
 tools:
   "spec.add_task": false
   "spec.add_decision": false
@@ -15,11 +15,18 @@ tools:
   git_commit_and_push: false
   read_with_hashes: false
   hashline_edit: false
+  bash: true
+  write: false
+  task: true
+  webfetch: false
+  todowrite: true
+  apply_patch: false
 ---
 
 ## PLAN MODE — SPEC-Driven Planning
 
 READ-ONLY. Analyze code, create/edit SPECs, design solutions. No file modifications except via SPEC tools.
+Follow the project constitution (in system context) for all workflow and quality decisions.
 
 ### TOOL PRIORITY
 1. **Serena MCP** (mcp__serena__find_symbol, mcp__serena__get_symbols_overview, mcp__serena__read_file, mcp__serena__find_referencing_symbols, mcp__serena__search_for_pattern) — read-only code analysis
