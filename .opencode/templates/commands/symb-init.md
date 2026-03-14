@@ -20,23 +20,45 @@ Ask the user the following questions one at a time. Use sensible defaults.
 3. **File encoding** — default: `utf-8` (only ask if they want something different)
 4. **Brief project description** — one sentence, used for Serena memory
 
-## Step 2: Create Project Structure
+## Step 2: Verify Global Serena MCP
 
-After getting answers, create these files using `write` or `bash mkdir -p`:
+Serena MCP is configured **globally** in `~/.config/opencode/opencode.json`, NOT per-project.
+The `--project-from-cwd` flag auto-detects the project from `.serena/project.yml`.
+
+Check if Serena is already configured by looking for a `"serena"` entry under `"mcp"` in
+`~/.config/opencode/opencode.json`. If missing, tell the user they need to add this to their
+global OpenCode config under the `"mcp"` key:
+
+```json
+"serena": {
+  "type": "local",
+  "command": [
+    "uvx", "--from", "git+https://github.com/oraios/serena",
+    "serena", "start-mcp-server",
+    "--context", "ide",
+    "--project-from-cwd",
+    "--open-web-dashboard", "False"
+  ],
+  "enabled": true
+}
+```
+
+**Important**: If `uvx` is not on the system PATH (common on remote/SSH servers), use the
+full path (e.g., `/home/user/.local/bin/uvx`). Check with `which uvx`.
+
+**Do NOT** add Serena to the per-project `.opencode/config.json` — it belongs in the global config.
+
+## Step 3: Create Project Structure
+
+After getting answers, create these files:
 
 ### `.opencode/config.json`
 ```json
 {
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "serena": {
-      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
-      "deferLoading": false,
-      "description": "Symbolic code operations (always loaded)"
-    }
-  }
+  "$schema": "https://opencode.ai/config.json"
 }
 ```
+This file is for project-specific plugin settings only. Serena MCP is global.
 
 ### `.opencode/constitution.md`
 Generate a constitution based on the project info. Include:
@@ -89,11 +111,13 @@ memories/
 - `.opencode/prompts/` (agents handle prompts)
 - `.opencode/tools-catalog.json` (registry handles this)
 
-## Step 3: Activate Serena
+## Step 4: Activate Serena
 
-After creating all files:
+After creating all files, since `--project-from-cwd` is used, Serena auto-detects the
+project from `.serena/project.yml` when the MCP server starts. However, if this is the
+first time in this session:
 
-1. Call `activate_project` with the project name from step 1
+1. Call `activate_project` with the project path
 2. Call `onboarding` to let Serena index the project
 3. Call `write_memory` with topic `"project-init"` and content summarizing:
    - Project name and description
@@ -101,7 +125,11 @@ After creating all files:
    - Date initialized
    - Tools available (SPEC tools, hashline, verify_work, git_commit_and_push)
 
-## Step 4: Report Completion
+If Serena tools are not available (MCP not connected), tell the user to:
+1. Add the Serena entry to their global config (Step 2 above)
+2. Restart OpenCode so the MCP server connects
+
+## Step 5: Report Completion
 
 Show the user a summary:
 - Files created (list them)

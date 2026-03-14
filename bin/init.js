@@ -57,14 +57,7 @@ const SPEC_INDEX_TEMPLATE = `# SPEC Index
 `
 
 const CONFIG_TEMPLATE = `{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "serena": {
-      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
-      "deferLoading": false,
-      "description": "Symbolic code operations (always loaded)"
-    }
-  }
+  "$schema": "https://opencode.ai/config.json"
 }
 `
 
@@ -143,9 +136,13 @@ async function init() {
 
   console.log('\n[done] Project scaffolding created.\n')
   console.log('Next steps:')
-  console.log('  1. Start OpenCode: opencode')
-  console.log('  2. Run /symb-init for full interactive setup (language servers, Serena activation, onboarding)')
-  console.log('  3. Or manually edit .serena/project.yml to configure languages')
+  console.log('  1. Ensure Serena MCP is in your GLOBAL OpenCode config (~/.config/opencode/opencode.json)')
+  console.log('     Add under "mcp": { "serena": { "type": "local", "command": ["/path/to/uvx",')
+  console.log('     "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server",')
+  console.log('     "--context", "ide", "--project-from-cwd"], "enabled": true } }')
+  console.log('  2. Start OpenCode: opencode')
+  console.log('  3. Run /symb-init for full interactive setup (language config, Serena activation, onboarding)')
+  console.log('  4. Or manually edit .serena/project.yml to configure languages')
 }
 
 init().catch(err => {
