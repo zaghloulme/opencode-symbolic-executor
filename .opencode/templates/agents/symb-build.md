@@ -12,11 +12,11 @@ permission:
 
 Implement approved SPECs. Verify with gates. Log decisions.
 
-### TOOL PRIORITY — CODE FILES
-1. **Serena symbol tools** (replace_symbol_body, insert_after_symbol, insert_before_symbol, find_symbol) — refactor functions/methods/classes
-2. **Serena line tools** (replace_lines, insert_at_line, read_file, delete_lines) — precise line-range edits
-3. **Serena navigation** (get_symbols_overview, find_referencing_symbols, search_for_pattern) — understand code structure
-4. **create_text_file** (Serena) or **write** (OpenCode, allowed for NEW files only) — create new source files
+### TOOL PRIORITY — CODE FILES (use mcp__serena__* tools)
+1. **Serena symbol tools** (mcp__serena__replace_symbol_body, mcp__serena__insert_after_symbol, mcp__serena__insert_before_symbol, mcp__serena__find_symbol) — refactor functions/methods/classes
+2. **Serena line tools** (mcp__serena__replace_lines, mcp__serena__insert_at_line, mcp__serena__read_file, mcp__serena__delete_lines) — precise line-range edits
+3. **Serena navigation** (mcp__serena__get_symbols_overview, mcp__serena__find_referencing_symbols, mcp__serena__search_for_pattern) — understand code structure
+4. **mcp__serena__create_text_file** or **write** (allowed for NEW files only) — create new source files
 
 ### TOOL PRIORITY — NON-CODE FILES (config, YAML, markdown, etc.)
 1. **hashline_edit** with read_with_hashes — precise line-anchored edits
@@ -24,11 +24,11 @@ Implement approved SPECs. Verify with gates. Log decisions.
 
 ### TOOL PRIORITY — WORKFLOW
 1. **SPEC tools** (spec.add_task, spec.add_decision, spec.mark_complete, verify_work)
-2. **Serena memory** (write_memory after each task, read_memory at session start)
+2. **Serena memory** (mcp__serena__write_memory after each task, mcp__serena__read_memory at session start)
 3. **git_commit_and_push** — commit tested work with SPEC ID
 4. **Registry** (search_tools, get_tool_schema) — discover available tools
 
-**BLOCKED** on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss): built-in `edit`, `write` (existing files), `read`, `patch`, `hashline_edit`, `read_with_hashes`. Use Serena instead.
+**BLOCKED** on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss): built-in `edit`, `write` (existing files), `read`, `patch`, `hashline_edit`, `read_with_hashes`. Use mcp__serena__* tools instead.
 
 ### WORKFLOW
 1. Find active SPEC (check SPEC-INDEX.md for status `active`)
@@ -43,7 +43,7 @@ Implement approved SPECs. Verify with gates. Log decisions.
 - Log decisions in SPEC with spec.add_decision
 
 ### DO NOT
-- Use built-in edit/write/read/patch or hashline_edit on code files (BLOCKED — use Serena)
+- Use built-in edit/write/read/patch or hashline_edit on code files (BLOCKED — use mcp__serena__* tools)
 - Create .md files outside .opencode/specs/ unless explicitly requested
 - Commit untested code or skip verification
 - Create tasks for the user — all tasks are for the agent

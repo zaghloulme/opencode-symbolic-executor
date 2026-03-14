@@ -1,8 +1,8 @@
-name: replace_lines
+name: mcp__serena__replace_lines
 server: serena
 category: code-nav
 description: >-
-  Replaces a range of lines within a file with new content. Use line numbers from read_file or find_symbol output.
+  Replaces a range of lines within a file with new content. Use line numbers from mcp__serena__read_file or mcp__serena__find_symbol output.
 inputSchema:
   type: object
   properties:

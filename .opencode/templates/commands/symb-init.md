@@ -117,9 +117,9 @@ After creating all files, since `--project-from-cwd` is used, Serena auto-detect
 project from `.serena/project.yml` when the MCP server starts. However, if this is the
 first time in this session:
 
-1. Call `activate_project` with the project path
-2. Call `onboarding` to let Serena index the project
-3. Call `write_memory` with topic `"project-init"` and content summarizing:
+1. Call `mcp__serena__activate_project` with the project path
+2. Call `mcp__serena__onboarding` to let Serena index the project
+3. Call `mcp__serena__write_memory` with topic `"project-init"` and content summarizing:
    - Project name and description
    - Languages configured
    - Date initialized

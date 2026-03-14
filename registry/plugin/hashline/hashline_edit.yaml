@@ -3,7 +3,7 @@ server: plugin
 category: hashline
 description: >-
   Edit NON-CODE files (config, YAML, markdown, etc.) using LINE#ID anchors for precise, safe modifications.
-  BLOCKED on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss) -- use Serena replace_lines or replace_symbol_body instead.
+  BLOCKED on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss) -- use mcp__serena__replace_lines or mcp__serena__replace_symbol_body instead.
   Use read_with_hashes first to get anchors. For NEW files, use unanchored append (op: "append" without pos field).
 inputSchema:
   type: object

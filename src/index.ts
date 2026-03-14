@@ -126,10 +126,10 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
       if (isCodeFile && (input.tool === "hashline_edit" || input.tool === "read_with_hashes")) {
         const serenaAlts =
           input.tool === "hashline_edit"
-            ? "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods), insert_at_line, insert_after_symbol, insert_before_symbol"
-            : "Use Serena: read_file (line-numbered output), find_symbol (symbol lookup), get_symbols_overview (file structure)";
+            ? "Use mcp__serena__replace_lines (line ranges), mcp__serena__replace_symbol_body (functions/methods), mcp__serena__insert_at_line, mcp__serena__insert_after_symbol, mcp__serena__insert_before_symbol"
+            : "Use mcp__serena__read_file (line-numbered output), mcp__serena__find_symbol (symbol lookup), mcp__serena__get_symbols_overview (file structure)";
         throw new Error(
-          `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${serenaAlts}. hashline_edit is for non-code files only (config, YAML, markdown).`,
+          `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${serenaAlts}. hashline_edit is for non-code files only (config, YAML, markdown). If Serena tools are not available, restart OpenCode and ensure Serena MCP is configured in ~/.config/opencode/opencode.json`,
         );
       }
 
@@ -146,14 +146,14 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         }
 
         const alternatives: Record<string, string> = {
-          edit: "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods), insert_at_line",
+          edit: "Use mcp__serena__replace_lines (line ranges), mcp__serena__replace_symbol_body (functions/methods), mcp__serena__insert_at_line",
           write:
-            "File already exists. Use Serena: replace_lines, replace_symbol_body, insert_at_line. For NEW files: create_text_file",
-          read: "Use Serena: read_file (line-numbered), find_symbol (symbol lookup), get_symbols_overview (file structure)",
-          patch: "Use Serena: replace_lines (line ranges), replace_symbol_body (functions/methods)",
+            "File already exists. Use mcp__serena__replace_lines, mcp__serena__replace_symbol_body, mcp__serena__insert_at_line. For NEW files: mcp__serena__create_text_file",
+          read: "Use mcp__serena__read_file (line-numbered), mcp__serena__find_symbol (symbol lookup), mcp__serena__get_symbols_overview (file structure)",
+          patch: "Use mcp__serena__replace_lines (line ranges), mcp__serena__replace_symbol_body (functions/methods)",
         };
         throw new Error(
-          `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${alternatives[input.tool] || "Use Serena tools."}`,
+          `BLOCKED: Cannot use '${input.tool}' on code file '${filePath}'. ${alternatives[input.tool] || "Use Serena MCP tools (mcp__serena__*)."} If Serena tools are not available, restart OpenCode and ensure Serena MCP is configured in ~/.config/opencode/opencode.json`,
         );
       }
 
@@ -164,7 +164,7 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
         const touchesCodeFile = CODE_EXTENSIONS.some((ext) => cmd.includes(ext));
         if (touchesCodeFile && fileEditPatterns.some((p) => p.test(cmd))) {
           throw new Error(
-            `BLOCKED: Cannot use bash for file editing on code files. Use Serena tools (replace_lines, insert_at_line, etc).`,
+            `BLOCKED: Cannot use bash for file editing on code files. Use Serena MCP tools (mcp__serena__replace_lines, mcp__serena__insert_at_line, etc). If Serena tools are not available, restart OpenCode and ensure Serena MCP is configured.`,
           );
         }
         if (/git\s+(commit|push)\b/i.test(cmd)) {
@@ -763,7 +763,7 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 
       read_with_hashes: tool({
         description:
-          "Read NON-CODE files with LINE#ID format for hashline_edit. BLOCKED on code files — use Serena read_file instead.",
+          "Read NON-CODE files with LINE#ID format for hashline_edit. BLOCKED on code files — use mcp__serena__read_file instead.",
         args: {
           filePath: z.string().describe("Path to file (relative or absolute)"),
           includeHashPrefix: z.boolean().default(true),
@@ -798,7 +798,7 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
 
       hashline_edit: tool({
         description:
-          "Edit NON-CODE files using LINE#ID anchors. BLOCKED on code files — use Serena replace_lines/replace_symbol_body. For NEW non-code files, use unanchored append (no pos field).",
+          "Edit NON-CODE files using LINE#ID anchors. BLOCKED on code files — use mcp__serena__replace_lines / mcp__serena__replace_symbol_body. For NEW non-code files, use unanchored append (no pos field).",
         args: {
           filePath: z.string().describe("Path to file (relative or absolute)"),
           edits: z.array(

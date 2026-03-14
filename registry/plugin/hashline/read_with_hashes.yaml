@@ -3,7 +3,7 @@ server: plugin
 category: hashline
 description: >-
   Read NON-CODE files with LINE#ID format for hashline_edit compatibility.
-  BLOCKED on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss) -- use Serena read_file instead.
+  BLOCKED on code files (.ts/.tsx/.js/.jsx/.vue/.svelte/.css/.scss) -- use mcp__serena__read_file instead.
   Returns each line prefixed with its line number and 2-char hash anchor. Supports both relative and absolute paths.
 inputSchema:
   type: object

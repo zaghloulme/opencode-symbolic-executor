@@ -1,4 +1,4 @@
-name: find_referencing_symbols
+name: mcp__serena__find_referencing_symbols
 server: serena
 category: code-nav
 description: >-
