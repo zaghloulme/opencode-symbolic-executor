@@ -845,7 +845,9 @@ ${args.requirements.map((r, i) => `- [ ] REQ-${String(i + 1).padStart(3, "0")}: 
                 .map((line) => line.replace(/^\d+#[ZPMQVRWSNKTXJBYH]{2}\|/, ""))
                 .join("\n");
 
-              const writePath = args.rename ? path.join(context.directory, args.rename) : fullPath;
+              const writePath = args.rename
+                ? path.isAbsolute(args.rename) ? args.rename : path.join(context.directory, args.rename)
+                : fullPath;
               await fs.mkdir(path.dirname(writePath), { recursive: true });
               await fs.writeFile(writePath, contentToWrite, "utf-8");
             }

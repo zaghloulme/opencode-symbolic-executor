@@ -35,7 +35,7 @@ export function createHashlineEditTool(directory: string) {
     async execute(args) {
       try {
         // Resolve file path
-        const fullPath = path.join(directory, args.filePath);
+        const fullPath = path.isAbsolute(args.filePath) ? args.filePath : path.join(directory, args.filePath);
 
         // Read current file content
         let content: string;
@@ -80,7 +80,9 @@ export function createHashlineEditTool(directory: string) {
             .map((line) => line.replace(/^\d+#[ZPMQVRWSNKTXJBYH]{2}\|/, ""))
             .join("\n");
 
-          const writePath = args.rename ? path.join(directory, args.rename) : fullPath;
+          const writePath = args.rename
+            ? (path.isAbsolute(args.rename) ? args.rename : path.join(directory, args.rename))
+            : fullPath;
 
           // Ensure directory exists
           await fs.mkdir(path.dirname(writePath), { recursive: true });
