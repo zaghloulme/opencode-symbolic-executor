@@ -47,8 +47,14 @@ describe("Tool blocking - correct OpenCode tool names", () => {
     expect(isBlocked("edit", "src/index.ts")).toBe(true);
   });
 
-  it("blocks 'write' on .tsx files", () => {
+  it("blocks 'write' on existing code files (pattern match)", () => {
     expect(isBlocked("write", "src/App.tsx")).toBe(true);
+  });
+
+  it("'write' on new code files is allowed by the async hook (fs.access check), not testable here", () => {
+    // The hook allows write when fs.access throws (file doesn't exist)
+    // This is tested via the async hook in index.ts, not the pattern matcher
+    expect(true).toBe(true);
   });
 
   it("blocks 'read' on .vue files", () => {

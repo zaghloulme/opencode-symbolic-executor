@@ -90,12 +90,25 @@ export const SymbolicExecutor: Plugin = async ({ directory, client }) => {
     "tool.execute.before": async (input, output) => {
       const filePath = output.args?.filePath || output.args?.path || "";
 
-      // BLOCK built-in file tools on code files (Serena REQUIRED)
+      // BLOCK built-in file tools on EXISTING code files (Serena REQUIRED)
+      // Allow 'write' on new files -- Serena can't create files from scratch
       const isCodeFile = CODE_EXTENSIONS.some((ext) => filePath.toLowerCase().endsWith(ext));
       if (isCodeFile && BLOCKED_FILE_TOOLS.includes(input.tool)) {
+        // Allow 'write' if the file doesn't exist yet (new file creation)
+        if (input.tool === "write" && filePath) {
+          const fullPath = path.resolve(directory, filePath);
+          try {
+            await fs.access(fullPath);
+            // File exists -- block it, should use Serena
+          } catch {
+            // File doesn't exist -- allow creation
+            return;
+          }
+        }
+
         const alternatives: Record<string, string> = {
           edit: "Use Serena replace_content or hashline_edit with read_with_hashes",
-          write: "Use Serena replace_content or hashline_edit with read_with_hashes",
+          write: "Use Serena replace_content or hashline_edit with read_with_hashes (file already exists)",
           read: "Use read_with_hashes (LINE#ID format) or Serena find_symbol",
           patch: "Use Serena replace_content or hashline_edit with read_with_hashes",
         };
