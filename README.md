@@ -7,14 +7,14 @@ SPEC-driven development for OpenCode with hash-anchored edits and lazy MCP tool 
 - **SPEC-driven workflow**: Create requirements → implement → verify (no vague prompts)
 - **Hash-anchored edits**: LINE#ID format prevents stale line errors (6.7% → 68.3% success rate)
 - **Lazy tool loading**: Catalog builds on session start, tools load on-demand (85% context reduction)
-- **Three agents**: spec-plan (read-only), spec-build (full access), chat (ask-first)
+- **Three agents**: symb-plan (read-only), symb-build (full access), symb-chat (ask-first)
 - **Task rules**: Agent creates tasks for itself only—no "confirm" or "test" tasks for users
 
 ## Agents
 
-The plugin automatically installs three agents on first load:
+The plugin installs three agents and disables OpenCode’s built-in ones so only these show:
 
-### spec-plan (READ-ONLY)
+### symb-plan (READ-ONLY)
 
 SPEC-driven planning and requirements gathering.
 
@@ -40,7 +40,7 @@ SPEC implementation and verification.
 
 **Use for**: Implementing SPEC requirements, verifying with gates
 
-### chat (ASK-FIRST)
+### symb-chat (ASK-FIRST)
 
 Casual conversation, brainstorming, and research.
 
@@ -55,7 +55,10 @@ Casual conversation, brainstorming, and research.
 
 ---
 
-Agents are installed to `~/.config/opencode/agents/` and are immediately available in OpenChamber. Built-in Plan/Build modes are automatically disabled.
+Agents are installed to `~/.config/opencode/agents/`. On each session start the plugin:
+- **Disables** OpenCode’s built-in primary agents (build, plan, chat) in `~/.config/opencode/opencode.json` via `agent.<name>.disable: true`
+- Sets **default_agent** to `symb-build`
+- **Prunes** any other agent files in that directory so only symb-plan, symb-build, symb-chat remain
 
 ## Install
 
@@ -192,11 +195,11 @@ Edits reference `1#AB` instead of line numbers. Hash validation catches stale re
 
 Switch between agents using the agent selector in OpenChamber:
 
-- **spec-plan**: SPEC creation, requirements gathering (read-only)
-- **spec-build**: Implementation, verification gates (full access)
-- **chat**: Casual questions, research, creative tasks (ask-first)
+- **symb-plan**: SPEC creation, requirements gathering (read-only)
+- **symb-build**: Implementation, verification gates (full access)
+- **symb-chat**: Casual questions, research, creative tasks (ask-first)
 
-Built-in Plan/Build modes are disabled automatically. Use the agent selector to switch between spec-plan, spec-build, and chat.
+Built-in build/plan/chat are disabled automatically. Use the agent selector to switch between the three symb-* agents.
 
 ## Slash Commands
 
